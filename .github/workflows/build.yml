@@ -1,0 +1,42 @@
+name: Build LineageOS for SM-C7000
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Install build dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git-core repo gnupg flex bison gperf build-essential \
+          zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 \
+          lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev \
+          libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3 \
+          bc cpio rsync
+
+    - name: Download LineageOS source (depth 1)
+      run: |
+        mkdir -p ~/android/lineage
+        cd ~/android/lineage
+        repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1
+        repo sync -c -j4 --no-clone-bundle --no-tags
+
+    - name: Download and extract device/vendor
+      run: |
+        cd ~/android/lineage
+        wget -O c7lte.tar.gz https://github.com/AwdndWindowsServer/C7-Lineageos1/releases/download/gg/c7lte_device_and_vendor.tar.gz
+        tar -xzf c7lte.tar.gz
+
+    - name: Build ROM
+      run: |
+        cd ~/android/lineage
+        source build/envsetup.sh
+        breakfast c7ltechn
+        brunch c7ltechn
+
+    - name: Upload ROM
+      uses: actions/upload-artifact@v4
+      with:
+        name: lineage-18.1-c7ltechn
+        path: ~/android/lineage/out/target/product/c7ltechn/*.zip
