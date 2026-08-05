@@ -28,6 +28,41 @@ jobs:
         wget -O c7lte.tar.gz https://github.com/AwdndWindowsServer/C7-Lineageos1/releases/download/gg/c7lte_device_and_vendor.tar.gz
         tar -xzf c7lte.tar.gz
 
+    - name: Fix missing AndroidProducts.mk and SELinux
+      run: |
+        cd ~/android/lineage/device/samsung/c7ltechn
+        
+        # 创建 AndroidProducts.mk
+        cat > AndroidProducts.mk << 'EOF'
+        PRODUCT_MAKEFILES := $(LOCAL_DIR)/lineage_c7ltechn.mk
+        COMMON_LUNCH_CHOICES := lineage_c7ltechn-userdebug
+        EOF
+        
+        # 修复 BoardConfig.mk（如果还没有 SELinux 宽容设置）
+        if ! grep -q "BOARD_KERNEL_CMDLINE.*selinux=permissive" BoardConfig.mk; then
+          echo "BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive" >> BoardConfig.mk
+          echo "SELINUX_IGNORE_NEVERALLOWS := true" >> BoardConfig.mk
+        fi
+        
+        # 如果 lineage_c7ltechn.mk 不存在，创建它
+        if [ ! -f lineage_c7ltechn.mk ]; then
+          cat > lineage_c7ltechn.mk << 'EOF'
+        $(call inherit-product, device/samsung/c7ltechn/device.mk)
+        $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
+        PRODUCT_DEVICE := c7ltechn
+        PRODUCT_NAME := lineage_c7ltechn
+        PRODUCT_BRAND := samsung
+        PRODUCT_MODEL := SM-C7000
+        PRODUCT_MANUFACTURER := samsung
+        PRODUCT_BUILD_PROP_OVERRIDES += TARGET_DEVICE=c7ltechn PRODUCT_NAME=c7ltechn
+        BUILD_FINGERPRINT := "samsung/c7ltechn/c7ltechn:8.0.0/R16NW/C7000ZCU2BRB3:user/release-keys"
+        $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
+        EOF
+        fi
+        
+        # 如果 vendorsetup.sh 存在，清空或删除（避免废弃警告）
+        echo "# Legacy file - lunch choices are now in AndroidProducts.mk" > vendorsetup.sh
+
     - name: Build ROM
       run: |
         cd ~/android/lineage
