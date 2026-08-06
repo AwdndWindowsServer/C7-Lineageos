@@ -93,7 +93,7 @@ jobs:
         $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
         EOF
 
-        # BoardConfig.mk（彻底修复：添加忽略重复规则）
+        # BoardConfig.mk（添加忽略重复规则，可能无效但保留）
         cat > BoardConfig.mk << 'EOF'
         TARGET_DEVICE := c7ltechn
         TARGET_BOARD_PLATFORM := msm8953
@@ -131,18 +131,14 @@ jobs:
         TARGET_RECOVERY_FSTAB := device/samsung/c7ltechn/rootdir/etc/fstab.qcom
         BOARD_USES_QCOM_HARDWARE := true
 
-        # ========== 关键修复 ==========
-        # 忽略重复规则，解决 displayservice 冲突
+        # ========== 修复：忽略重复规则（可能无效） ==========
         TARGET_IGNORE_DUPLICATE_RULES := true
-        # 禁用 ION
         TARGET_USES_ION := false
         BOARD_AVB_ENABLE := false
         TARGET_SUPPORTS_64_BIT_APPS := true
         BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
         SELINUX_IGNORE_NEVERALLOWS := true
-        # 明确禁用 WiFi HAL 编译
         BUILD_QCOM_WLAN_HAL := false
-        # 禁用硬件合成器
         TARGET_NO_HWCOMPOSER := true
         EOF
 
@@ -165,6 +161,10 @@ jobs:
             $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/vendor/,$(TARGET_COPY_OUT_VENDOR))
         EOF
 
+        # 删除可能导致重复冲突的 displayservice 库
+        rm -f ~/android/lineage/vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
+        rm -f ~/android/lineage/vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.displayservice@1.0.so
+
         # 创建 vendorsetup.sh（避免警告）
         echo "# Legacy file" > vendorsetup.sh
 
@@ -175,6 +175,10 @@ jobs:
         # 暴力移除引起依赖缺失的 HAL 模块（libmemalloc, libwpa_client）
         rm -rf hardware/qcom-caf/msm8996
         rm -rf hardware/qcom-caf/wlan
+        
+        # 再次删除冲突文件（确保）
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.displayservice@1.0.so
         
         # 强制允许缺失依赖
         export ALLOW_MISSING_DEPENDENCIES=true
