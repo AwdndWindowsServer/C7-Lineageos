@@ -93,7 +93,7 @@ jobs:
         $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
         EOF
 
-        # BoardConfig.mk（添加忽略重复规则，可能无效但保留）
+        # BoardConfig.mk
         cat > BoardConfig.mk << 'EOF'
         TARGET_DEVICE := c7ltechn
         TARGET_BOARD_PLATFORM := msm8953
@@ -131,7 +131,6 @@ jobs:
         TARGET_RECOVERY_FSTAB := device/samsung/c7ltechn/rootdir/etc/fstab.qcom
         BOARD_USES_QCOM_HARDWARE := true
 
-        # ========== 修复：忽略重复规则（可能无效） ==========
         TARGET_IGNORE_DUPLICATE_RULES := true
         TARGET_USES_ION := false
         BOARD_AVB_ENABLE := false
@@ -161,11 +160,14 @@ jobs:
             $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/vendor/,$(TARGET_COPY_OUT_VENDOR))
         EOF
 
-        # 删除可能导致重复冲突的 displayservice 库
-        rm -f ~/android/lineage/vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
-        rm -f ~/android/lineage/vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.displayservice@1.0.so
+        # ========== 删除所有可能导致冲突的 framework 库 ==========
+        cd ~/android/lineage
+        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.frameworks.*@*.so" -type f -delete 2>/dev/null || true
+        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.hardware.*@*.so" -type f -delete 2>/dev/null || true
+        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.system.*@*.so" -type f -delete 2>/dev/null || true
+        # 也删除 lib64 下的（如果上面 lib* 已经包含了 lib64，则无需重复）
 
-        # 创建 vendorsetup.sh（避免警告）
+        # 清空 vendorsetup.sh
         echo "# Legacy file" > vendorsetup.sh
 
     - name: Build ROM
@@ -176,9 +178,8 @@ jobs:
         rm -rf hardware/qcom-caf/msm8996
         rm -rf hardware/qcom-caf/wlan
         
-        # 再次删除冲突文件（确保）
-        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
-        rm -f vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.displayservice@1.0.so
+        # 再次删除可能残留的冲突库（确保）
+        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.*@*.so" -type f -delete 2>/dev/null || true
         
         # 强制允许缺失依赖
         export ALLOW_MISSING_DEPENDENCIES=true
