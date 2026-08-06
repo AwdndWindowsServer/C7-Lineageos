@@ -116,9 +116,24 @@ jobs:
           TARGET_NO_HWCOMPOSER := true
           EOF
 
+          cat > vendor/samsung/c7ltechn/c7ltechn-vendor.mk << 'EOF'
+          PRODUCT_COPY_FILES += \
+              vendor/samsung/c7ltechn/proprietary/ueventd.rc:$(TARGET_COPY_OUT_VENDOR)/ueventd.rc \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/bin,$(TARGET_COPY_OUT_VENDOR)/bin) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/etc,$(TARGET_COPY_OUT_VENDOR)/etc) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/firmware,$(TARGET_COPY_OUT_VENDOR)/firmware) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/framework,$(TARGET_COPY_OUT_VENDOR)/framework) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/overlay,$(TARGET_COPY_OUT_VENDOR)/overlay) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/app,$(TARGET_COPY_OUT_VENDOR)/app) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/lib,$(TARGET_COPY_OUT_VENDOR)/lib) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/lib64,$(TARGET_COPY_OUT_VENDOR)/lib64) \
+              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/bhy_firmware,$(TARGET_COPY_OUT_VENDOR)/bhy_firmware)
+          EOF
+
       - name: Remove obsolete android.*.so blobs
         run: |
           find vendor/samsung/c7ltechn/proprietary/system/ -type f -name 'android.*.so' -delete
+          rm -f vendor/samsung/c7ltechn/proprietary/etc/fstab.qcom
 
       - name: Remove unused qcom hardware trees
         run: |
