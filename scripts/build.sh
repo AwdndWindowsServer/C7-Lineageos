@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# 注意：不能用 set -u。Android 9 的 build/envsetup.sh 在 bash 4.4+ 的
+# nounset 模式下会因空数组报 "unbound variable"（envsetup.sh:1702 _xarray）。
+set -eo pipefail
 
 LOS_BRANCH="${LOS_BRANCH:-lineage-16.0}"
 DEVICE="${DEVICE:-j7popltespr}"
@@ -19,6 +21,8 @@ JAVA8="$(ls -d /usr/lib/jvm/java-8-openjdk-* 2>/dev/null | head -n1 || true)"
 if [ -n "$JAVA8" ]; then
   sudo update-alternatives --set java "$JAVA8/bin/java" 2>/dev/null || true
   export JAVA_HOME="$JAVA8"
+  # 直接前置 PATH，确保 `java` 解析到 8（update-alternatives 在 runner 上可能不生效）
+  export PATH="$JAVA8/bin:$PATH"
 else
   echo "::warning::OpenJDK 8 not found in /usr/lib/jvm"
 fi
