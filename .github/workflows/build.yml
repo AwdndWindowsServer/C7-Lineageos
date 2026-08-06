@@ -93,7 +93,7 @@ jobs:
         $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
         EOF
 
-        # BoardConfig.mk（彻底修复）
+        # BoardConfig.mk（彻底修复：添加忽略重复规则）
         cat > BoardConfig.mk << 'EOF'
         TARGET_DEVICE := c7ltechn
         TARGET_BOARD_PLATFORM := msm8953
@@ -131,7 +131,10 @@ jobs:
         TARGET_RECOVERY_FSTAB := device/samsung/c7ltechn/rootdir/etc/fstab.qcom
         BOARD_USES_QCOM_HARDWARE := true
 
-        # ========== 关键修复：跳过依赖检查 ==========
+        # ========== 关键修复 ==========
+        # 忽略重复规则，解决 displayservice 冲突
+        TARGET_IGNORE_DUPLICATE_RULES := true
+        # 禁用 ION
         TARGET_USES_ION := false
         BOARD_AVB_ENABLE := false
         TARGET_SUPPORTS_64_BIT_APPS := true
