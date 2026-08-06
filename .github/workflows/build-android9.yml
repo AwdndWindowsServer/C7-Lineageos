@@ -1,0 +1,85 @@
+name: Build LineageOS 16.0
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Device codename (lunch 目标)'
+        required: true
+        default: 'j7popltespr'
+      manifest:
+        description: '本地 manifest，相对仓库根目录'
+        required: true
+        default: 'manifest/j7popltespr.xml'
+      runner:
+        description: 'Runner 类型（Android 全量编译建议 8-core）'
+        required: true
+        default: 'ubuntu-latest'
+        type: choice
+        options:
+          - ubuntu-latest
+          - ubuntu-latest-4-core
+          - ubuntu-latest-8-core
+      build_jobs:
+        description: '并行编译任务数 (-j)'
+        required: false
+        default: '2'
+  push:
+    branches: [main]
+    paths: ['.github/**', 'manifest/**', 'scripts/**']
+
+jobs:
+  build:
+    # Android 9 (LOS 16.0) 官方推荐 Ubuntu 18.04/20.04 构建。
+    # ubuntu-latest(2核/7G) 免费但 6h 超时内大概率编不完，首次建议
+    # ubuntu-latest-8-core（8核/32G/200G磁盘，需 Larger Runner 配额）。
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 360
+    env:
+      LOS_BRANCH: lineage-16.0
+      DEVICE: ${{ inputs.device || 'j7popltespr' }}
+      MANIFEST: ${{ inputs.manifest || 'manifest/j7popltespr.xml' }}
+      BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
+      SYNC_JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/local/share/swift /usr/lib/mono \
+            /usr/local/lib/node_modules /root/.cargo /root/.rustup
+          sudo apt-get clean
+          docker image prune -af || true
+          df -h
+
+      - name: Install build dependencies (Ubuntu 20.04 / Android 9)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev \
+            lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
+            libxml2 libxml2-utils lzop openjdk-8-jdk pngcrush python2.7 \
+            rsync schedtool squashfs-tools xsltproc zip zlib1g-dev || true
+          # Android 9 仍需要 python2
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python2 || true
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python || true
+          # repo 工具
+          sudo curl -sSL https://storage.googleapis.com/git-repo-downloads/repo \
+            -o /usr/local/bin/repo
+          sudo chmod a+x /usr/local/bin/repo
+
+      - name: Build
+        run: bash scripts/build.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lineage-16-${{ env.DEVICE }}
+          path: |
+            android/out/target/product/${{ env.DEVICE }}/lineage_*.zip
+            android/out/target/product/${{ env.DEVICE }}/recovery.img
+            android/out/target/product/${{ env.DEVICE }}/boot.img
+          if-no-files-found: warn
+          retention-days: 7

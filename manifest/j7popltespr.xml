@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  验证目标：Samsung Galaxy J7 (2016) Sprint (SM-J727P, j7popltespr)
+  来源：Galaxy-MSM8953 组织，lineage-16.0 (Android 9) 三件套全部对齐，
+  是同一组织里唯一完整的 Android 9 栈。与 C7 (SM-C7000) 同 SoC (MSM8953)、
+  同 Samsung 厂商 HAL，先把它编译通过验证管线，再移植 C7 设备树。
+-->
+<manifest>
+  <remote name="msm8953" fetch="https://github.com/Galaxy-MSM8953/" />
+
+  <project path="device/samsung/j7popltespr" name="android_device_samsung_j7popltespr" remote="msm8953" revision="lineage-16.0" />
+  <project path="kernel/samsung/msm8953" name="android_kernel_samsung_msm8953" remote="msm8953" revision="lineage-16.0" />
+  <project path="vendor/samsung" name="proprietary_vendor_samsung" remote="msm8953" revision="lineage-16.0" />
+
+  <!-- 官方 LineageOS 仓库，构建 Samsung 设备需要 -->
+  <project path="hardware/samsung" name="LineageOS/android_hardware_samsung" remote="github" revision="lineage-16.0" />
+</manifest>

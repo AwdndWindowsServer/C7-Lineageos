@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  C7 目标：Samsung Galaxy C7 国行 (SM-C7000, c7ltechn)
+  ⚠️ 注意：此 manifest 目前【还不能直接编译】，三处设备树需要移植：
+   1. device/samsung/c7ltechn @ android-9.0 是 OmniROM 9 的薄设备层
+      (omni_c7ltechn.mk)，需改写成 LineageOS 16.0 风格 (lineage_c7ltechn.mk)。
+      参考写法：device/samsung/j7popltespr @ lineage-16.0。
+   2. device/samsung/c7lte-common @ cm-14.1 是 Android 7.1 的公共设备树
+      (音频/相机/RIL/传感器/sepolicy 等)，需整体移植到 lineage-16.0
+      (PRODUCT_COPY_FILES → PRODUCT_PACKAGES、vendor 分区拆分等)。
+   3. kernel/samsung/msm8953 @ lineage-16.0 里没有
+      lineageos_c7ltechn_defconfig，需要从 cm-14.1-c7 分支带过来适配。
+  移植完成前，lunch lineage_c7ltechn-userdebug 会失败，属预期。
+-->
+<manifest>
+  <remote name="msm8953" fetch="https://github.com/Galaxy-MSM8953/" />
+
+  <project path="device/samsung/c7ltechn" name="android_device_samsung_c7ltechn" remote="msm8953" revision="android-9.0" />
+  <project path="device/samsung/c7lte-common" name="android_device_samsung_c7lte-common" remote="msm8953" revision="cm-14.1" />
+  <project path="kernel/samsung/msm8953" name="android_kernel_samsung_msm8953" remote="msm8953" revision="lineage-16.0" />
+  <project path="vendor/samsung" name="proprietary_vendor_samsung" remote="msm8953" revision="lineage-15.1" />
+
+  <project path="hardware/samsung" name="LineageOS/android_hardware_samsung" remote="github" revision="lineage-16.0" />
+</manifest>
