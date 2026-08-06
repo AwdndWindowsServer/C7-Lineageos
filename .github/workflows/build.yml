@@ -59,11 +59,11 @@ jobs:
       - name: Initialize LineageOS 18.1 source
         run: |
           repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 \
-            --no-clone-bundle --no-tags
+            --depth=1 --no-clone-bundle --no-tags
 
       - name: Sync LineageOS 18.1 source
         run: |
-          repo sync -c -j4 --depth=1 --no-clone-bundle --no-tags
+          repo sync -c -j4 --no-clone-bundle --no-tags
 
       - name: Download device tree and vendor blobs
         run: |
