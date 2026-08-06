@@ -28,39 +28,80 @@ jobs:
         wget -O c7lte.tar.gz https://github.com/AwdndWindowsServer/C7-Lineageos1/releases/download/gg/c7lte_device_and_vendor.tar.gz
         tar -xzf c7lte.tar.gz
 
-    - name: Fix missing AndroidProducts.mk and SELinux
+    - name: Fix device tree for Samsung C7
       run: |
         cd ~/android/lineage/device/samsung/c7ltechn
-        
+
         # 创建 AndroidProducts.mk
         cat > AndroidProducts.mk << 'EOF'
         PRODUCT_MAKEFILES := $(LOCAL_DIR)/lineage_c7ltechn.mk
         COMMON_LUNCH_CHOICES := lineage_c7ltechn-userdebug
         EOF
+
+        # 重写 device.mk（移除对不存在的 msm8953-common 的依赖）
+        cat > device.mk << 'EOF'
+        $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
         
-        # 修复 BoardConfig.mk（如果还没有 SELinux 宽容设置）
-        if ! grep -q "BOARD_KERNEL_CMDLINE.*selinux=permissive" BoardConfig.mk; then
-          echo "BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive" >> BoardConfig.mk
-          echo "SELINUX_IGNORE_NEVERALLOWS := true" >> BoardConfig.mk
-        fi
+        # Audio
+        PRODUCT_PACKAGES += audio.primary.msm8953 audio.r_submix.default audio.usb.default
+        PRODUCT_PACKAGES += libaudio-resampler libqcomvisualizer libqcomvoiceprocessing libqcompostprocbundle
         
-        # 如果 lineage_c7ltechn.mk 不存在，创建它
-        if [ ! -f lineage_c7ltechn.mk ]; then
-          cat > lineage_c7ltechn.mk << 'EOF'
+        # Camera
+        PRODUCT_PACKAGES += libmm-qcamera Snap
+        
+        # Display
+        PRODUCT_PACKAGES += libdisplayconfig libhwc2on1adapter libqdMetaData libqdutils libsdm-disp-apis libsdmutils
+        
+        # GPS
+        PRODUCT_PACKAGES += libgnsspps libloc_core libloc_ds_api liblocation_api libqmi_cci libqmi_common_so libqmi_csi libqmi_encdec libqmi_qmux libqmiservices
+        
+        # Sensors
+        PRODUCT_PACKAGES += libsensor1 libsensor_reg sensors.msm8953
+        
+        # WiFi
+        PRODUCT_PACKAGES += hostapd libwifi-hal-qcom wpa_supplicant wpa_supplicant.conf
+        
+        # Power
+        PRODUCT_PACKAGES += power.qcom
+        
+        # Init scripts (fstab)
+        PRODUCT_COPY_FILES += $(LOCAL_PATH)/rootdir/etc/fstab.qcom:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.qcom
+        
+        # Overlays
+        DEVICE_PACKAGE_OVERLAYS += device/samsung/c7ltechn/overlay
+        
+        # Set USB VID/PID
+        PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.usb.vid=04e8 ro.usb.pid=6860
+        EOF
+
+        # 重写 lineage_c7ltechn.mk（确保不依赖外部 common 树）
+        cat > lineage_c7ltechn.mk << 'EOF'
         $(call inherit-product, device/samsung/c7ltechn/device.mk)
         $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
+        
         PRODUCT_DEVICE := c7ltechn
         PRODUCT_NAME := lineage_c7ltechn
         PRODUCT_BRAND := samsung
         PRODUCT_MODEL := SM-C7000
         PRODUCT_MANUFACTURER := samsung
+        
         PRODUCT_BUILD_PROP_OVERRIDES += TARGET_DEVICE=c7ltechn PRODUCT_NAME=c7ltechn
         BUILD_FINGERPRINT := "samsung/c7ltechn/c7ltechn:8.0.0/R16NW/C7000ZCU2BRB3:user/release-keys"
+        
         $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
         EOF
+
+        # 修复 BoardConfig.mk
+        # 1. 确保 SELinux 为 Permissive 模式，避免启动失败
+        # 2. 确保不引用缺失的 sepolicy 目录
+        if ! grep -q "BOARD_KERNEL_CMDLINE.*selinux=permissive" BoardConfig.mk; then
+          echo "BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive" >> BoardConfig.mk
+          echo "SELINUX_IGNORE_NEVERALLOWS := true" >> BoardConfig.mk
         fi
+        # 注释掉可能存在的 sepolicy 目录引用，防止编译报错
+        sed -i 's/^BOARD_SEPOLICY_DIRS/#BOARD_SEPOLICY_DIRS/g' BoardConfig.mk
         
-        # 如果 vendorsetup.sh 存在，清空或删除（避免废弃警告）
+        # 清空 vendorsetup.sh 消除过时警告
         echo "# Legacy file - lunch choices are now in AndroidProducts.mk" > vendorsetup.sh
 
     - name: Build ROM
