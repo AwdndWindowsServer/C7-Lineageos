@@ -93,7 +93,7 @@ jobs:
         $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
         EOF
 
-        # BoardConfig.mk（关键设置）
+        # BoardConfig.mk（彻底修复）
         cat > BoardConfig.mk << 'EOF'
         TARGET_DEVICE := c7ltechn
         TARGET_BOARD_PLATFORM := msm8953
@@ -131,12 +131,16 @@ jobs:
         TARGET_RECOVERY_FSTAB := device/samsung/c7ltechn/rootdir/etc/fstab.qcom
         BOARD_USES_QCOM_HARDWARE := true
 
-        # 禁用 ION 避免 libmemalloc 依赖
+        # ========== 关键修复：跳过依赖检查 ==========
         TARGET_USES_ION := false
         BOARD_AVB_ENABLE := false
         TARGET_SUPPORTS_64_BIT_APPS := true
         BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
         SELINUX_IGNORE_NEVERALLOWS := true
+        # 明确禁用 WiFi HAL 编译
+        BUILD_QCOM_WLAN_HAL := false
+        # 禁用硬件合成器
+        TARGET_NO_HWCOMPOSER := true
         EOF
 
         # fstab
