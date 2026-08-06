@@ -38,7 +38,7 @@ jobs:
         COMMON_LUNCH_CHOICES := lineage_c7ltechn-userdebug
         EOF
 
-        # 重写 device.mk（移除对不存在的 msm8953-common 的依赖）
+        # 重写 device.mk（完全自包含，不依赖外部 common）
         cat > device.mk << 'EOF'
         $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
         
@@ -70,11 +70,11 @@ jobs:
         # Overlays
         DEVICE_PACKAGE_OVERLAYS += device/samsung/c7ltechn/overlay
         
-        # Set USB VID/PID
+        # USB VID/PID
         PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.usb.vid=04e8 ro.usb.pid=6860
         EOF
 
-        # 重写 lineage_c7ltechn.mk（确保不依赖外部 common 树）
+        # 重写 lineage_c7ltechn.mk
         cat > lineage_c7ltechn.mk << 'EOF'
         $(call inherit-product, device/samsung/c7ltechn/device.mk)
         $(call inherit-product, vendor/lineage/config/common_full_phone.mk)
@@ -92,16 +92,22 @@ jobs:
         EOF
 
         # 修复 BoardConfig.mk
-        # 1. 确保 SELinux 为 Permissive 模式，避免启动失败
-        # 2. 确保不引用缺失的 sepolicy 目录
+        # 1. 支持64位应用
+        # 2. SELinux permissive
+        # 3. 移除 sepolicy 引用
+        if ! grep -q "TARGET_SUPPORTS_64_BIT_APPS" BoardConfig.mk; then
+          echo "TARGET_SUPPORTS_64_BIT_APPS := true" >> BoardConfig.mk
+        fi
         if ! grep -q "BOARD_KERNEL_CMDLINE.*selinux=permissive" BoardConfig.mk; then
           echo "BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive" >> BoardConfig.mk
           echo "SELINUX_IGNORE_NEVERALLOWS := true" >> BoardConfig.mk
         fi
-        # 注释掉可能存在的 sepolicy 目录引用，防止编译报错
         sed -i 's/^BOARD_SEPOLICY_DIRS/#BOARD_SEPOLICY_DIRS/g' BoardConfig.mk
         
-        # 清空 vendorsetup.sh 消除过时警告
+        # 创建缺失的 vendor 目录避免 find 报错
+        mkdir -p ~/android/lineage/vendor/samsung/c7ltechn/proprietary/vendor 2>/dev/null || true
+        
+        # 清空 vendorsetup.sh 消除警告
         echo "# Legacy file - lunch choices are now in AndroidProducts.mk" > vendorsetup.sh
 
     - name: Build ROM
