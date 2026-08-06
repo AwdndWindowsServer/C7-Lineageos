@@ -6,11 +6,11 @@ on:
       device:
         description: 'Device codename (lunch 目标)'
         required: true
-        default: 'j7popltespr'
+        default: 'c7ltechn'
       manifest:
         description: '本地 manifest，相对仓库根目录'
         required: true
-        default: 'manifest/j7popltespr.xml'
+        default: 'manifest/c7ltechn.xml'
       runner:
         description: 'Runner 类型（Android 9 需 Java 8，必须用 22.04；全量编译建议 8-core）'
         required: true
@@ -24,7 +24,7 @@ on:
         description: '并行编译任务数 (-j)；ubuntu-22.04 runner 为 4 核'
         required: false
         default: '4'
-  push:
+push:
     branches: [main]
     paths: ['.github/**', 'manifest/**', 'scripts/**']
 
@@ -37,10 +37,11 @@ jobs:
     timeout-minutes: 360
     env:
       LOS_BRANCH: lineage-16.0
-      DEVICE: ${{ inputs.device || 'j7popltespr' }}
-      MANIFEST: ${{ inputs.manifest || 'manifest/j7popltespr.xml' }}
+      DEVICE: ${{ inputs.device || 'c7ltechn' }}
+      MANIFEST: ${{ inputs.manifest || 'manifest/c7ltechn.xml' }}
       BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
       SYNC_JOBS: '4'
+      C7_EXTRACT_URL: https://github.com/AwdndWindowsServer/C7-Lineageos/releases/download/c7-extract-v1/system.tar.gz
     steps:
       - uses: actions/checkout@v4
 

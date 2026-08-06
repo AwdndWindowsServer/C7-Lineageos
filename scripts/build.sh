@@ -81,7 +81,57 @@ for attempt in 1 2 3; do
 done
 log_end
 
-# ---------- 5. 老内核宿主工具兼容 ----------
+# ---------- 5. C7 专用：内核 defconfig + vendor 生成 ----------
+if [ "$DEVICE" = "c7ltechn" ]; then
+  log_group "C7 内核 defconfig"
+  KCFG="kernel/samsung/msm8953/arch/arm64/configs/c7ltechn_defconfig"
+  if [ ! -f "$KCFG" ]; then
+    mkdir -p "$(dirname "$KCFG")"
+    cp "$PROJECT_ROOT/kernel/c7ltechn_defconfig" "$KCFG"
+    echo "已安装 C7 defconfig"
+  fi
+  log_end
+
+  log_group "C7 vendor 提取"
+  EXTRACT_DIR="$SRC_ROOT/.c7extract"
+  mkdir -p "$EXTRACT_DIR/system"
+  C7_READY=0
+  if [ -n "${C7_EXTRACT_URL:-}" ] && [ ! -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ]; then
+    curl -fL --retry 3 -o "$EXTRACT_DIR/system.tar.gz" "$C7_EXTRACT_URL" \
+      && tar xzf "$EXTRACT_DIR/system.tar.gz" -C "$EXTRACT_DIR" \
+      && C7_READY=1 || echo "::warning::C7 提取包下载失败，回退 j7 blobs"
+  fi
+
+  PROP_LIST="$PROJECT_ROOT/device/samsung/c7ltechn/proprietary-files.txt"
+  J7_PROP="$SRC_ROOT/vendor/samsung/j7popltespr/proprietary"
+  while IFS= read -r line; do
+    case "$line" in ""|"#"*) continue;; esac
+    line="${line%%|*}"
+    src="${line%%:*}"; dest="${line#*:}"
+    [ "$src" = "$line" ] && dest="$src"
+    sfile="$EXTRACT_DIR/system/$src"
+    jfile="$J7_PROP/$dest"
+    if [ -f "$sfile" ]; then
+      [ "$C7_READY" = "0" ] && echo "保留 C7 旧缓存: $src"
+    elif [ -f "$jfile" ]; then
+      mkdir -p "$(dirname "$sfile")"
+      cp "$jfile" "$sfile"
+      echo "fallback(j7): $src"
+    else
+      echo "::warning::$src 在提取包与 j7 vendor 中均缺失"
+    fi
+  done < "$PROP_LIST"
+
+  if [ -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ] || compgen -G "$EXTRACT_DIR/system/vendor/lib/*.so" >/dev/null; then
+    ( cd "$PROJECT_ROOT/device/samsung/c7ltechn" && ./extract-files.sh "$EXTRACT_DIR" )
+  else
+    echo "::error::C7 vendor 生成失败：无任何 blob 可用"
+    exit 1
+  fi
+  log_end
+fi
+
+# ---------- 6. 老内核宿主工具兼容 ----------
 # 3.18 内核的 scripts/dtc 在 GCC 10+（默认 -fno-common）下链接报
 #   "multiple definition of `yylloc'"
 # 修复：给内核宿主编译器加 -fcommon（环境变量 + 保险的文件补丁双保险）

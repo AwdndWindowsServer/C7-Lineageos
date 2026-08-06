@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  C7 目标（本仓库直接维护的设备树）：Samsung Galaxy C7 国行 (SM-C7000, c7ltechn)
+  设备树 device/samsung/c7ltechn 由本仓库（AwdndWindowsServer/C7-Lineageos）提供，
+  基于 j7popltespr@lineage-16.0 移植，设备特有 configs/rootdir/blob 均取自
+  原机提取（C7000ZCS3CRJ1, Android 8.0.0）。编译流程见 scripts/build.sh 的
+  DEVICE=c7ltechn 分支（自动下载原机提取包生成 vendor，缺失 blob 以 j7 兜底）。
+-->
+<manifest>
+  <remote name="msm8953" fetch="https://github.com/Galaxy-MSM8953/" />
+  <remote name="self" fetch="https://github.com/AwdndWindowsServer/" />
+
+  <!-- 设备树：本仓库自维护 -->
+  <project path="device/samsung/c7ltechn" name="C7-Lineageos" remote="self" revision="main" />
+
+  <!-- 内核：lineage-16.0 分支已含 c7ltechn defconfig 依赖的 C7 全套 DTS -->
+  <project path="kernel/samsung/msm8953" name="android_kernel_samsung_msm8953" remote="msm8953" revision="lineage-16.0" />
+
+  <!-- Samsung 通用硬件（mkbootimg 等） -->
+  <project path="hardware/samsung" name="LineageOS/android_hardware_samsung" remote="github" revision="lineage-16.0" />
+
+  <!-- 厂商 blobs：j7popltespr 用于提取缺失项的兜底 -->
+  <project path="vendor/samsung" name="proprietary_vendor_samsung" remote="msm8953" revision="lineage-16.0" />
+</manifest>
