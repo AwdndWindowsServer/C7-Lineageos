@@ -133,6 +133,7 @@ jobs:
       - name: Remove obsolete android.*.so blobs
         run: |
           find vendor/samsung/c7ltechn/proprietary/system/ -type f -name 'android.*.so' -delete
+          find vendor/samsung/c7ltechn/proprietary -name '*.apk' -delete
           rm -f vendor/samsung/c7ltechn/proprietary/etc/fstab.qcom
 
       - name: Remove unused qcom hardware trees
