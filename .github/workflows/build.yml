@@ -160,12 +160,17 @@ jobs:
             $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/vendor/,$(TARGET_COPY_OUT_VENDOR))
         EOF
 
-        # 使用绝对路径删除所有可能冲突的 android.*.so 文件
+        # 使用绝对路径删除所有可能冲突的文件
         cd ~/android/lineage
         rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.schedulerservice@1.0.so
         rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
         rm -f vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.schedulerservice@1.0.so
         rm -f vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.displayservice@1.0.so
+        
+        # 删除预编译的 libfwdlockengine.so，避免与源码编译冲突
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib/drm/libfwdlockengine.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/drm/libfwdlockengine.so
+        
         # 删除所有 android.*.so 以防万一
         find vendor/samsung/c7ltechn/proprietary/system -name "android.*.so" -type f -delete 2>/dev/null || true
 
@@ -179,6 +184,8 @@ jobs:
         # 再次删除冲突文件（确保）
         rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.schedulerservice@1.0.so
         rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib/drm/libfwdlockengine.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/drm/libfwdlockengine.so
         find vendor/samsung/c7ltechn/proprietary/system -name "android.*.so" -type f -delete 2>/dev/null || true
         
         # 移除引起依赖缺失的 HAL 模块
