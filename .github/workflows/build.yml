@@ -38,7 +38,7 @@ jobs:
         COMMON_LUNCH_CHOICES := lineage_c7ltechn-userdebug
         EOF
 
-        # 精简 device.mk（不包含 wifi_hal 和 hwcomposer 相关包）
+        # 精简 device.mk
         cat > device.mk << 'EOF'
         $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
         
@@ -131,7 +131,6 @@ jobs:
         TARGET_RECOVERY_FSTAB := device/samsung/c7ltechn/rootdir/etc/fstab.qcom
         BOARD_USES_QCOM_HARDWARE := true
 
-        TARGET_IGNORE_DUPLICATE_RULES := true
         TARGET_USES_ION := false
         BOARD_AVB_ENABLE := false
         TARGET_SUPPORTS_64_BIT_APPS := true
@@ -139,6 +138,7 @@ jobs:
         SELINUX_IGNORE_NEVERALLOWS := true
         BUILD_QCOM_WLAN_HAL := false
         TARGET_NO_HWCOMPOSER := true
+        TARGET_IGNORE_DUPLICATE_RULES := true
         EOF
 
         # fstab
@@ -160,12 +160,14 @@ jobs:
             $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/vendor/,$(TARGET_COPY_OUT_VENDOR))
         EOF
 
-        # ========== 删除所有可能导致冲突的 framework 库 ==========
+        # 使用绝对路径删除所有可能冲突的 android.*.so 文件
         cd ~/android/lineage
-        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.frameworks.*@*.so" -type f -delete 2>/dev/null || true
-        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.hardware.*@*.so" -type f -delete 2>/dev/null || true
-        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.system.*@*.so" -type f -delete 2>/dev/null || true
-        # 也删除 lib64 下的（如果上面 lib* 已经包含了 lib64，则无需重复）
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.schedulerservice@1.0.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.schedulerservice@1.0.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib/android.frameworks.displayservice@1.0.so
+        # 删除所有 android.*.so 以防万一
+        find vendor/samsung/c7ltechn/proprietary/system -name "android.*.so" -type f -delete 2>/dev/null || true
 
         # 清空 vendorsetup.sh
         echo "# Legacy file" > vendorsetup.sh
@@ -174,12 +176,14 @@ jobs:
       run: |
         cd ~/android/lineage
         
-        # 暴力移除引起依赖缺失的 HAL 模块（libmemalloc, libwpa_client）
+        # 再次删除冲突文件（确保）
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.schedulerservice@1.0.so
+        rm -f vendor/samsung/c7ltechn/proprietary/system/lib64/android.frameworks.displayservice@1.0.so
+        find vendor/samsung/c7ltechn/proprietary/system -name "android.*.so" -type f -delete 2>/dev/null || true
+        
+        # 移除引起依赖缺失的 HAL 模块
         rm -rf hardware/qcom-caf/msm8996
         rm -rf hardware/qcom-caf/wlan
-        
-        # 再次删除可能残留的冲突库（确保）
-        find vendor/samsung/c7ltechn/proprietary/system/lib* -name "android.*@*.so" -type f -delete 2>/dev/null || true
         
         # 强制允许缺失依赖
         export ALLOW_MISSING_DEPENDENCIES=true
