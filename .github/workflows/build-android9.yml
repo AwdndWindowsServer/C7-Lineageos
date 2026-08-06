@@ -24,7 +24,7 @@ on:
         description: '并行编译任务数 (-j)；ubuntu-22.04 runner 为 4 核'
         required: false
         default: '4'
-push:
+  push:
     branches: [main]
     paths: ['.github/**', 'manifest/**', 'scripts/**']
 
