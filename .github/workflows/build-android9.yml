@@ -12,14 +12,14 @@ on:
         required: true
         default: 'manifest/j7popltespr.xml'
       runner:
-        description: 'Runner 类型（Android 全量编译建议 8-core）'
+        description: 'Runner 类型（Android 9 需 Java 8，必须用 22.04；全量编译建议 8-core）'
         required: true
-        default: 'ubuntu-latest'
+        default: 'ubuntu-22.04'
         type: choice
         options:
-          - ubuntu-latest
-          - ubuntu-latest-4-core
-          - ubuntu-latest-8-core
+          - ubuntu-22.04
+          - ubuntu-22.04-4-core
+          - ubuntu-22.04-8-core
       build_jobs:
         description: '并行编译任务数 (-j)'
         required: false
@@ -30,10 +30,10 @@ on:
 
 jobs:
   build:
-    # Android 9 (LOS 16.0) 官方推荐 Ubuntu 18.04/20.04 构建。
-    # ubuntu-latest(2核/7G) 免费但 6h 超时内大概率编不完，首次建议
-    # ubuntu-latest-8-core（8核/32G/200G磁盘，需 Larger Runner 配额）。
-    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    # Android 9 (LOS 16.0) 需要 Java 8，官方 22.04 镜像自带。
+    # ubuntu-22.04(2核/7G) 免费但 6h 超时内大概率编不完，全量编译请选
+    # ubuntu-22.04-8-core（8核/32G/200G磁盘，需 Larger Runner 配额）。
+    runs-on: ${{ inputs.runner || 'ubuntu-22.04' }}
     timeout-minutes: 360
     env:
       LOS_BRANCH: lineage-16.0
@@ -53,7 +53,7 @@ jobs:
           docker image prune -af || true
           df -h
 
-      - name: Install build dependencies (Ubuntu 20.04 / Android 9)
+      - name: Install build dependencies (Ubuntu 22.04 / Android 9)
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
