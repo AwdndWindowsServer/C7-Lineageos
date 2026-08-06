@@ -72,6 +72,9 @@ jobs:
         
         # USB VID/PID
         PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.usb.vid=04e8 ro.usb.pid=6860
+
+        # 添加缺失的依赖库（让编译系统知道它们存在）
+        PRODUCT_PACKAGES += libmemalloc libwpa_client
         EOF
 
         # 重写 lineage_c7ltechn.mk
@@ -92,9 +95,6 @@ jobs:
         EOF
 
         # 修复 BoardConfig.mk
-        # 1. 支持64位应用
-        # 2. SELinux permissive
-        # 3. 移除 sepolicy 引用
         if ! grep -q "TARGET_SUPPORTS_64_BIT_APPS" BoardConfig.mk; then
           echo "TARGET_SUPPORTS_64_BIT_APPS := true" >> BoardConfig.mk
         fi
@@ -113,6 +113,7 @@ jobs:
     - name: Build ROM
       run: |
         cd ~/android/lineage
+        export ALLOW_MISSING_DEPENDENCIES=true
         source build/envsetup.sh
         breakfast c7ltechn
         brunch c7ltechn
