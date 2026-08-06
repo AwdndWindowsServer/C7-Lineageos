@@ -21,9 +21,9 @@ on:
           - ubuntu-22.04-4-core
           - ubuntu-22.04-8-core
       build_jobs:
-        description: '并行编译任务数 (-j)'
+        description: '并行编译任务数 (-j)；ubuntu-22.04 runner 为 4 核'
         required: false
-        default: '2'
+        default: '4'
   push:
     branches: [main]
     paths: ['.github/**', 'manifest/**', 'scripts/**']
@@ -60,7 +60,7 @@ jobs:
             bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
             git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev \
             lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
-            libxml2 libxml2-utils lzop openjdk-8-jdk pngcrush python2.7 \
+            libtinfo5 libxml2 libxml2-utils lzop openjdk-8-jdk pngcrush python2.7 \
             rsync schedtool squashfs-tools xsltproc zip zlib1g-dev || true
           # Android 9 仍需要 python2
           sudo ln -sf /usr/bin/python2.7 /usr/bin/python2 || true
