@@ -65,6 +65,11 @@ jobs:
         run: |
           repo sync -c -j4 --no-clone-bundle --no-tags
 
+      - name: Clone kernel source (Samsung 3.18, oreo branch)
+        run: |
+          git clone --depth=1 -b oreo https://github.com/ai94iq/android_kernel_c7lte \
+            kernel/samsung/c7ltechn
+
       - name: Download device tree and vendor blobs
         run: |
           curl -L -o c7lte_device_and_vendor.tar.gz \
@@ -103,6 +108,12 @@ jobs:
           $(call inherit-product, vendor/samsung/c7ltechn/c7ltechn-vendor.mk)
           EOF
 
+          sed -i '/^TARGET_PREBUILT_KERNEL/d' device/samsung/c7ltechn/BoardConfig.mk
+
+          sed -i \
+            's/^CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES=.*/CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES="msm8953-sec-c7lte_chn-r00 msm8953-sec-c7lte_chn-r01 msm8953-sec-c7lte_chn-r02 msm8953-sec-c7lte_chn-r03 msm8953-sec-c7lte_chn-r04"/' \
+            kernel/samsung/c7ltechn/arch/arm64/configs/c7lte_chn_open_defconfig
+
           cat >> device/samsung/c7ltechn/BoardConfig.mk << 'EOF'
 
           # LineageOS 18.1 build fixes
@@ -114,6 +125,12 @@ jobs:
           SELINUX_IGNORE_NEVERALLOWS := true
           BUILD_QCOM_WLAN_HAL := false
           TARGET_NO_HWCOMPOSER := true
+
+          # Kernel built from source (Samsung 3.18)
+          TARGET_KERNEL_SOURCE := kernel/samsung/c7ltechn
+          TARGET_KERNEL_CONFIG := c7lte_chn_open_defconfig
+          TARGET_KERNEL_ARCH := arm64
+          BOARD_KERNEL_IMAGE_NAME := Image.gz-dtb
           EOF
 
           cat > vendor/samsung/c7ltechn/c7ltechn-vendor.mk << 'EOF'
