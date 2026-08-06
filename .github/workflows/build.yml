@@ -23,10 +23,16 @@ jobs:
 
       - name: Configure swap space
         run: |
-          sudo fallocate -l 8G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          if ! sudo swapon --show | grep -q '/swapfile'; then
+            if [ -e /swapfile ]; then
+              sudo swapoff /swapfile 2>/dev/null || true
+              sudo rm -f /swapfile
+            fi
+            sudo fallocate -l 8G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+            sudo swapon /swapfile
+          fi
           free -h
 
       - name: Install build dependencies
@@ -34,7 +40,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git-core repo gnupg flex bison gperf \
             build-essential zip curl zlib1g-dev gcc-multilib g++-multilib \
-            libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev \
+            libc6-dev-i386 lib32ncurses-dev x11proto-core-dev libx11-dev \
             lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig \
             python3 bc cpio rsync openjdk-11-jdk
 
