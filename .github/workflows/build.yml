@@ -123,7 +123,6 @@ jobs:
               $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/etc,$(TARGET_COPY_OUT_VENDOR)/etc) \
               $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/firmware,$(TARGET_COPY_OUT_VENDOR)/firmware) \
               $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/framework,$(TARGET_COPY_OUT_VENDOR)/framework) \
-              $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/overlay,$(TARGET_COPY_OUT_VENDOR)/overlay) \
               $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/app,$(TARGET_COPY_OUT_VENDOR)/app) \
               $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/lib,$(TARGET_COPY_OUT_VENDOR)/lib) \
               $(call find-copy-subdir-files,*,vendor/samsung/c7ltechn/proprietary/lib64,$(TARGET_COPY_OUT_VENDOR)/lib64) \
