@@ -113,14 +113,18 @@ jobs:
             sudo dmesg 2>/dev/null | tail -25 || true
             echo "=== 磁盘 ==="
             df -h / 2>/dev/null | tail -2
-            echo "=== build.log 末尾（死前编译进度）==="
-            tail -c 3000 android/build.log 2>/dev/null | tail -15 || true
+            echo "=== build.log 内核错误上下文（死前 3000 字节）==="
+            tail -c 3000 android/build.log 2>/dev/null | tail -25 || true
+            echo "=== build.log 里 error 行（找内核具体错误）==="
+            grep -aE "error:|Error|fatal|undefined|No such|multiple definition" android/build.log 2>/dev/null | tail -20 || true
             echo "=== 顶层内存进程 ==="
             ps aux --sort=-%mem 2>/dev/null | head -8
           } | tee /tmp/diag.txt
           # 归档诊断供后续下载
           mkdir -p "$GITHUB_WORKSPACE/diag" && cp /tmp/diag.txt "$GITHUB_WORKSPACE/diag/" 2>/dev/null || true
-          echo "诊断输出已写到 diag.txt"
+          # 上传完整 build.log（含内核错误全文）
+          cp android/build.log "$GITHUB_WORKSPACE/diag/build.log" 2>/dev/null || true
+          echo "诊断输出已写到 diag.txt + build.log"
 
       - name: Upload diagnostics
         if: always()
