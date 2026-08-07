@@ -139,7 +139,14 @@ if [ "$DEVICE" = "c7ltechn" ]; then
   EXTRACT_DIR="$SRC_ROOT/.c7extract"
   mkdir -p "$EXTRACT_DIR/system"
   C7_READY=0
-  if [ -n "${C7_EXTRACT_URL:-}" ] && [ ! -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ]; then
+  # C7 原厂 blob 优先从 CI 仓库自带（vendor/extract/c7ltechn/system/）复制，
+  # 无需 GitHub Releases（PAT 无 Releases 写权限，Release 一直传不上去）。
+  REPO_EXTRACT="$PROJECT_ROOT/vendor/extract/c7ltechn/system"
+  if [ -d "$REPO_EXTRACT" ] && [ -n "$(ls -A "$REPO_EXTRACT" 2>/dev/null)" ]; then
+    cp -a "$REPO_EXTRACT/." "$EXTRACT_DIR/system/"
+    C7_READY=1
+    echo "::notice::C7 原厂 blob 已从仓库自带复制（$(find "$EXTRACT_DIR/system" -type f | wc -l) 个文件）"
+  elif [ -n "${C7_EXTRACT_URL:-}" ] && [ ! -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ]; then
     echo "::group::下载 C7 提取包 ($C7_EXTRACT_URL)"
     if curl -fL --retry 3 --retry-delay 5 -o "$EXTRACT_DIR/system.tar.gz" "$C7_EXTRACT_URL" \
         && tar xzf "$EXTRACT_DIR/system.tar.gz" -C "$EXTRACT_DIR"; then
@@ -149,6 +156,8 @@ if [ "$DEVICE" = "c7ltechn" ]; then
       echo "::warning::C7 提取包下载失败（URL: $C7_EXTRACT_URL），回退 j7 blobs 兜底"
     fi
     echo "::endgroup::"
+  else
+    echo "::warning::仓库无 C7 提取 blob、C7_EXTRACT_URL 未配置，回退 j7 blobs 兜底"
   fi
 
   # extract-files.sh 依赖 vendor/lineage/build/tools/extract_utils.sh，
