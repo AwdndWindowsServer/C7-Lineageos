@@ -337,6 +337,9 @@ MON_LOG="$SRC_ROOT/.buildmon.log"
   done
 ) &
 MON_PID=$!
+
+# 信号/错误捕获：即使 mka 被信号杀，也把状态写到文件（诊断用）
+trap 'echo "TRAP: build.sh received signal at $(date -u +%H:%M:%S), status=$status" >> "$SRC_ROOT/.buildsig.log" 2>/dev/null || true' EXIT
 for attempt in 1 2; do
   echo "==== 构建尝试 $attempt/2（mka $TARGET -j$BUILD_JOBS）===="
   set +e
