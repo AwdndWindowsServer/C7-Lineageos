@@ -187,19 +187,48 @@ if [ "$DEVICE" = "c7ltechn" ]; then
   done < "$PROP_LIST"
   echo "j7 兜底填充完成，缺失 blob 数: $missing"
 
-  # 运行 extract-files.sh 生成 vendor/samsung/c7ltechn
-  if [ -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ] || compgen -G "$EXTRACT_DIR/system/vendor/lib/*.so" >/dev/null; then
-    # 必须在 repo sync 后的设备树目录里跑：extract-files.sh 用相对路径
-    # ../../.. 找 $SRC_ROOT/vendor/lineage/build/tools/extract_utils.sh
-    ( cd "$SYNCED_DT" && ./extract-files.sh "$EXTRACT_DIR" )
-    # 生成结果自愈检查：vendor makefile 应已生成
-    ensure_file "$SRC_ROOT/vendor/samsung/c7ltechn/Android.mk" "extract-files.sh 生成的 vendor makefile（若缺失说明提取失败）"
-  else
-    echo "::error::C7 vendor 生成失败：提取目录无任何 blob 可用"
-    echo "::error::请检查 C7_EXTRACT_URL 是否能下载，或 device/samsung/c7ltechn/proprietary-files.txt 内容"
-    exit 1
-  fi
-  log_end
+    # 运行 extract-files.sh 生成 vendor/samsung/c7ltechn
+    if [ -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ] || compgen -G "$EXTRACT_DIR/system/vendor/lib/*.so" >/dev/null; then
+      # 必须在 repo sync 后的设备树目录里跑：extract-files.sh 用相对路径
+      # ../../.. 找 $SRC_ROOT/vendor/lineage/build/tools/extract_utils.sh
+      ( cd "$SYNCED_DT" && ./extract-files.sh "$EXTRACT_DIR" )
+
+      # 生成结果自愈检查：vendor makefile 应已生成在 vendor/samsung/c7ltechn/
+      C7_MAKEFILE="$SRC_ROOT/vendor/samsung/c7ltechn/Android.mk"
+      if [ ! -f "$C7_MAKEFILE" ]; then
+        # 历史 bug：setup-makefiles.sh 曾把 DEVICE 写死为 j7popltespr，
+        # 生成物落在 vendor/samsung/j7popltespr/。自动复制纠正。
+        WRONG_DIRS=( "$SRC_ROOT/vendor/samsung/j7popltespr" )
+        fixed=0
+        for d in "${WRONG_DIRS[@]}"; do
+          if [ -f "$d/Android.mk" ]; then
+            mkdir -p "$(dirname "$C7_MAKEFILE")"
+            cp -a "$d"/. "$(dirname "$C7_MAKEFILE")"/
+            echo "::notice::vendor makefile 生成在 $d（setup-makefiles.sh 旧 bug），已自动复制到 $C7_MAKEFILE"
+            fixed=1
+            break
+          fi
+        done
+        if [ "$fixed" -ne 1 ]; then
+          echo "::error::vendor makefile 未生成：$C7_MAKEFILE"
+          echo "::error::请检查 device/samsung/c7ltechn/setup-makefiles.sh 的 DEVICE 变量是否为 c7ltechn"
+          exit 1
+        fi
+      fi
+      # 校验 makefile 内容确实面向 c7ltechn（防 DEVICE 变量又改错）
+      if grep -q "c7ltechn" "$C7_MAKEFILE"; then
+        echo "::notice::vendor makefile 已就绪: $C7_MAKEFILE"
+      else
+        echo "::error::vendor makefile 内容不含 c7ltechn，疑似 DEVICE 变量仍指向错误设备"
+        grep -n "PRODUCT_PACKAGES\|LOCAL_PATH" "$C7_MAKEFILE" | head -5
+        exit 1
+      fi
+    else
+      echo "::error::C7 vendor 生成失败：提取目录无任何 blob 可用"
+      echo "::error::请检查 C7_EXTRACT_URL 是否能下载，或 device/samsung/c7ltechn/proprietary-files.txt 内容"
+      exit 1
+    fi
+    log_end
 fi
 
 # ---------- 6. 老内核宿主工具兼容 ----------

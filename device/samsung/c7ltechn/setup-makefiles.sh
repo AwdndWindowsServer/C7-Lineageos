@@ -18,7 +18,7 @@
 
 set -e
 
-DEVICE=j7popltespr
+DEVICE=c7ltechn
 VENDOR=samsung
 
 INITIAL_COPYRIGHT_YEAR=2019
