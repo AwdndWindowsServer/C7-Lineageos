@@ -21,8 +21,4 @@
 
   <!-- 厂商 blobs：j7popltespr 用于提取缺失项的兜底 -->
   <project path="vendor/samsung" name="proprietary_vendor_samsung" remote="msm8953" revision="lineage-16.0" />
-
-  <!-- vendor/lineage：提供 extract-files.sh 依赖的 build/tools/extract_utils.sh
-       （官方 LOS16 默认清单不含 vendor/lineage，需显式声明） -->
-  <project path="vendor/lineage" name="LineageOS/android_vendor_lineage" remote="github" revision="lineage-16.0" />
 </manifest>

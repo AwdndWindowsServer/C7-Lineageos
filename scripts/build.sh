@@ -102,7 +102,7 @@ if [ "$DEVICE" = "c7ltechn" ]; then
       && C7_READY=1 || echo "::warning::C7 提取包下载失败，回退 j7 blobs"
   fi
 
-  PROP_LIST="$PROJECT_ROOT/device/samsung/c7ltechn/proprietary-files.txt"
+  PROP_LIST="$SRC_ROOT/device/samsung/c7ltechn/proprietary-files.txt"
   J7_PROP="$SRC_ROOT/vendor/samsung/j7popltespr/proprietary"
   while IFS= read -r line; do
     case "$line" in ""|"#"*) continue;; esac
@@ -123,7 +123,9 @@ if [ "$DEVICE" = "c7ltechn" ]; then
   done < "$PROP_LIST"
 
   if [ -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ] || compgen -G "$EXTRACT_DIR/system/vendor/lib/*.so" >/dev/null; then
-    ( cd "$PROJECT_ROOT/device/samsung/c7ltechn" && ./extract-files.sh "$EXTRACT_DIR" )
+    # 必须在 repo sync 后的设备树目录里跑：extract-files.sh 用相对路径
+    # ../../.. 找 $SRC_ROOT/vendor/lineage/build/tools/extract_utils.sh
+    ( cd "$SRC_ROOT/device/samsung/c7ltechn" && ./extract-files.sh "$EXTRACT_DIR" )
   else
     echo "::error::C7 vendor 生成失败：无任何 blob 可用"
     exit 1
