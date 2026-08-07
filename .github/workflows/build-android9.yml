@@ -52,15 +52,15 @@ jobs:
           docker image prune -af || true
           df -h
 
-      # 实测结论：free runner 自带 3GB swapfile 已够用。
-      # 之前手动加 8GB swap 反而让 AOSP 编译陷入 swap 风暴（glob 阶段大量内存分配
-      # 被压进慢速 swap，进程静默挂起数分钟后被 OOM/超时杀掉）。
-      # j7 无额外 swap 能跑 2h+ 到 64% 即证明这点。这里只调低 swappiness 防止风暴。
-      - name: Tune swap (防止 AOSP 编译 swap 风暴)
+      # 实测结论（关键！）：free runner 7GB RAM + 3GB 自带 swap。
+      # 1) 手动加 8GB swap → swap 风暴静默挂死（glob 阶段大量内存被压进慢 swap）
+      # 2) swappiness=10（尽量不用 swap）→ 内存满时直接 OOM，编译 0-1% 被杀
+      # 正确做法：保留系统自带 3GB swap，swappiness 用默认 60（j7 用默认跑通 2h+ 到 64%）
+      - name: Tune swap (验证默认 swappiness)
         run: |
           free -h
           swapon --show || true
-          sudo sysctl -w vm.swappiness=10 || true
+          sudo sysctl -w vm.swappiness=60 || true
           cat /proc/sys/vm/swappiness
 
       - name: Install build dependencies (Ubuntu 22.04 / Android 9)
