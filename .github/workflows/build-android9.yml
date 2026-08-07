@@ -7,6 +7,10 @@ on:
         description: 'Device codename (lunch 目标)'
         required: true
         default: 'c7ltechn'
+      target:
+        description: '构建目标（bacon 全量 / bootimage 快速验证）'
+        required: false
+        default: 'bacon'
       manifest:
         description: '本地 manifest，相对仓库根目录'
         required: true
@@ -37,6 +41,7 @@ jobs:
       LOS_BRANCH: lineage-16.0
       DEVICE: ${{ inputs.device || 'c7ltechn' }}
       MANIFEST: ${{ inputs.manifest || 'manifest/c7ltechn.xml' }}
+      TARGET: ${{ inputs.target || 'bacon' }}
       BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
       SYNC_JOBS: '4'
       C7_EXTRACT_URL: https://github.com/AwdndWindowsServer/C7-Lineageos1/releases/download/shs/c7extract.zip
