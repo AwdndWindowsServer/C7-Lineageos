@@ -31,6 +31,45 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 log_group() { echo "::group::$*"; }
 log_end()   { echo "::endgroup::"; }
 
+# 自愈辅助：检查必需文件/目录，缺失时自动执行修复命令，修好继续，修不好才报错退出。
+# 用法:
+#   ensure_file  <文件路径> <说明> [修复命令(可含 bash -c ...)]
+#   ensure_dir   <目录路径> <说明> [修复命令...]
+ensure_file() {
+  local f="$1" desc="$2"; shift 2
+  [ -f "$f" ] && return 0
+  if [ "$#" -gt 0 ]; then
+    echo "::warning::缺少文件 $f（$desc），自动修复: $*"
+    if eval "$*"; then
+      if [ -f "$f" ]; then echo "::notice::自动修复成功: $f"; return 0; fi
+      echo "::error::自动修复命令执行了，但 $f 仍不存在"
+    else
+      echo "::error::自动修复命令执行失败: $*"
+    fi
+  else
+    echo "::error::缺少必需文件 $f（$desc），且没有自动修复方案"
+  fi
+  echo "::error::请人工检查 $f 后重新运行构建"
+  exit 1
+}
+ensure_dir() {
+  local d="$1" desc="$2"; shift 2
+  [ -d "$d" ] && return 0
+  if [ "$#" -gt 0 ]; then
+    echo "::warning::缺少目录 $d（$desc），自动修复: $*"
+    if eval "$*"; then
+      if [ -d "$d" ]; then echo "::notice::自动修复成功: $d"; return 0; fi
+      echo "::error::自动修复命令执行了，但 $d 仍不存在"
+    else
+      echo "::error::自动修复命令执行失败: $*"
+    fi
+  else
+    echo "::error::缺少必需目录 $d（$desc），且没有自动修复方案"
+  fi
+  echo "::error::请人工检查 $d 后重新运行构建"
+  exit 1
+}
+
 # ---------- 1. git 身份 ----------
 log_group "git 配置"
 git config --global user.name  "${USER_NAME:-C7 CI}"
@@ -81,29 +120,19 @@ for attempt in 1 2 3; do
 done
 log_end
 
-# ---------- 5. C7 专用：内核 defconfig + vendor 生成 ----------
+# ---------- 5. C7 专用：设备树 / 内核 defconfig / vendor 生成 ----------
 if [ "$DEVICE" = "c7ltechn" ]; then
-  log_group "C7 设备树同步"
-  # manifest 用 self remote 拉本仓库到 device/samsung/c7ltechn，但 repo sync
-  # 对与 CI checkout 同源的仓库可能静默跳过/失败，这里直接用 CI checkout 副本补齐。
+  log_group "C7 设备树检查"
   SYNCED_DT="$SRC_ROOT/device/samsung/c7ltechn"
-  if [ ! -f "$SYNCED_DT/proprietary-files.txt" ]; then
-    mkdir -p "$(dirname "$SYNCED_DT")"
-    rm -rf "$SYNCED_DT"
-    cp -a "$PROJECT_ROOT/device/samsung/c7ltechn" "$SYNCED_DT"
-    echo "设备树已从 CI checkout 复制到 $SYNCED_DT"
-  else
-    echo "设备树已由 repo sync 提供"
-  fi
+  # 设备树：优先 repo sync（manifest），缺则从 CI checkout 复制兜底。
+  ensure_file "$SYNCED_DT/proprietary-files.txt" "设备树 proprietary-files.txt（repo sync 的 self remote 设备树项目常被静默跳过）" \
+    "rm -rf '$SYNCED_DT' && mkdir -p '$(dirname "$SYNCED_DT")' && cp -a '$PROJECT_ROOT/device/samsung/c7ltechn' '$SYNCED_DT'"
   log_end
 
   log_group "C7 内核 defconfig"
-  KCFG="kernel/samsung/msm8953/arch/arm64/configs/c7ltechn_defconfig"
-  if [ ! -f "$KCFG" ]; then
-    mkdir -p "$(dirname "$KCFG")"
-    cp "$PROJECT_ROOT/kernel/c7ltechn_defconfig" "$KCFG"
-    echo "已安装 C7 defconfig"
-  fi
+  KCFG="$SRC_ROOT/kernel/samsung/msm8953/arch/arm64/configs/c7ltechn_defconfig"
+  ensure_file "$KCFG" "c7ltechn_defconfig（lineage-16.0 内核分支不含此 defconfig，需从 CI 仓库安装）" \
+    "mkdir -p '$(dirname "$KCFG")' && cp '$PROJECT_ROOT/kernel/c7ltechn_defconfig' '$KCFG'"
   log_end
 
   log_group "C7 vendor 提取"
@@ -111,13 +140,33 @@ if [ "$DEVICE" = "c7ltechn" ]; then
   mkdir -p "$EXTRACT_DIR/system"
   C7_READY=0
   if [ -n "${C7_EXTRACT_URL:-}" ] && [ ! -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ]; then
-    curl -fL --retry 3 -o "$EXTRACT_DIR/system.tar.gz" "$C7_EXTRACT_URL" \
-      && tar xzf "$EXTRACT_DIR/system.tar.gz" -C "$EXTRACT_DIR" \
-      && C7_READY=1 || echo "::warning::C7 提取包下载失败，回退 j7 blobs"
+    echo "::group::下载 C7 提取包 ($C7_EXTRACT_URL)"
+    if curl -fL --retry 3 --retry-delay 5 -o "$EXTRACT_DIR/system.tar.gz" "$C7_EXTRACT_URL" \
+        && tar xzf "$EXTRACT_DIR/system.tar.gz" -C "$EXTRACT_DIR"; then
+      C7_READY=1
+      echo "::notice::C7 原厂提取包下载并解压成功"
+    else
+      echo "::warning::C7 提取包下载失败（URL: $C7_EXTRACT_URL）"
+      echo "::warning::回退 j7 blobs：若后续报 missing blobs，请先到 GitHub Releases 上传提取包（需要 PAT 的 Releases 写权限）"
+    fi
+    echo "::endgroup::"
   fi
 
-  PROP_LIST="$SRC_ROOT/device/samsung/c7ltechn/proprietary-files.txt"
+  # extract-files.sh 依赖 vendor/lineage/build/tools/extract_utils.sh，
+  # 该文件由 LineageOS/android_vendor_lineage 提供，但 LOS16 默认清单的
+  # snippets 有时拉不到。缺则直接从 GitHub 拉取对应仓库。
+  HELPER="$SRC_ROOT/vendor/lineage/build/tools/extract_utils.sh"
+  ensure_file "$HELPER" "vendor/lineage 的 extract_utils.sh（extract-files.sh 依赖）" \
+    "git clone -b lineage-16.0 --depth 1 https://github.com/LineageOS/android_vendor_lineage '$SRC_ROOT/vendor/lineage'"
+
+  # j7 vendor 兜底目录：用于补齐 C7 缺失的 blob
   J7_PROP="$SRC_ROOT/vendor/samsung/j7popltespr/proprietary"
+  ensure_dir "$J7_PROP" "j7popltespr 的 proprietary blobs（vendor/samsung 兜底来源）" \
+    "git clone -b lineage-16.0 --depth 1 https://github.com/Galaxy-MSM8953/proprietary_vendor_samsung '$SRC_ROOT/vendor/samsung'"
+
+  PROP_LIST="$SYNCED_DT/proprietary-files.txt"
+  # 将 j7 blob 兜底填入提取目录：C7 提取包优先，缺的用 j7 的
+  missing=0
   while IFS= read -r line; do
     case "$line" in ""|"#"*) continue;; esac
     line="${line%%|*}"
@@ -133,15 +182,21 @@ if [ "$DEVICE" = "c7ltechn" ]; then
       echo "fallback(j7): $src"
     else
       echo "::warning::$src 在提取包与 j7 vendor 中均缺失"
+      missing=$((missing+1))
     fi
   done < "$PROP_LIST"
+  echo "j7 兜底填充完成，缺失 blob 数: $missing"
 
+  # 运行 extract-files.sh 生成 vendor/samsung/c7ltechn
   if [ -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ] || compgen -G "$EXTRACT_DIR/system/vendor/lib/*.so" >/dev/null; then
     # 必须在 repo sync 后的设备树目录里跑：extract-files.sh 用相对路径
     # ../../.. 找 $SRC_ROOT/vendor/lineage/build/tools/extract_utils.sh
-    ( cd "$SRC_ROOT/device/samsung/c7ltechn" && ./extract-files.sh "$EXTRACT_DIR" )
+    ( cd "$SYNCED_DT" && ./extract-files.sh "$EXTRACT_DIR" )
+    # 生成结果自愈检查：vendor makefile 应已生成
+    ensure_file "$SRC_ROOT/vendor/samsung/c7ltechn/Android.mk" "extract-files.sh 生成的 vendor makefile（若缺失说明提取失败）"
   else
-    echo "::error::C7 vendor 生成失败：无任何 blob 可用"
+    echo "::error::C7 vendor 生成失败：提取目录无任何 blob 可用"
+    echo "::error::请检查 C7_EXTRACT_URL 是否能下载，或 device/samsung/c7ltechn/proprietary-files.txt 内容"
     exit 1
   fi
   log_end
@@ -173,15 +228,31 @@ if [ "$USE_CCACHE" = "1" ]; then
 fi
 
 # ---------- 8. 编译 ----------
+# mka 失败时自动重试一次（AOSP 编译偶发 OOM/资源竞争，重跑常能过）。
+# 重试仍失败才报错退出。
 log_group "mka $TARGET -j$BUILD_JOBS"
-set +e
-mka "$TARGET" -j"$BUILD_JOBS" 2>&1 | tee "$SRC_ROOT/build.log"
-status=${PIPESTATUS[0]}
-set -e
+status=1
+for attempt in 1 2; do
+  echo "==== 构建尝试 $attempt/2（mka $TARGET -j$BUILD_JOBS）===="
+  set +e
+  mka "$TARGET" -j"$BUILD_JOBS" 2>&1 | tee "$SRC_ROOT/build.log"
+  status=${PIPESTATUS[0]}
+  set -e
+  if [ "$status" -eq 0 ]; then
+    break
+  fi
+  echo "::warning::mka 失败 (exit $status)，第 $attempt 次"
+  if [ "$attempt" -eq 1 ]; then
+    echo "::warning::首次失败原因（build.log 末尾）："
+    tail -n 25 "$SRC_ROOT/build.log" || true
+    echo "::warning::30 秒后自动重试一次（偶发 OOM/资源竞争）..."
+    sleep 30
+  fi
+done
 log_end
 
 if [ "$status" -ne 0 ]; then
-  echo "::error::构建失败 (exit $status)，build.log 末尾："
+  echo "::error::构建失败 (exit $status，重试后仍失败)，build.log 末尾："
   tail -n 40 "$SRC_ROOT/build.log" || true
   exit "$status"
 fi
