@@ -103,12 +103,18 @@ jobs:
         if: always()
         run: |
           {
+            echo "=== build.sh 内监控日志 (buildmon) ==="
+            cat android/.buildmon.log 2>/dev/null | tail -40 || true
+            echo "=== build.sh 信号记录 ==="
+            cat android/.buildsig.log 2>/dev/null | tail -5 || true
             echo "=== workflow 独立监控日志 ==="
             cat /tmp/wfmon.log 2>/dev/null | tail -40 || true
             echo "=== dmesg (OOM 痕迹) ==="
             sudo dmesg 2>/dev/null | tail -25 || true
             echo "=== 磁盘 ==="
             df -h / 2>/dev/null | tail -2
+            echo "=== build.log 末尾（死前编译进度）==="
+            tail -c 3000 android/build.log 2>/dev/null | tail -15 || true
             echo "=== 顶层内存进程 ==="
             ps aux --sort=-%mem 2>/dev/null | head -8
           } | tee /tmp/diag.txt

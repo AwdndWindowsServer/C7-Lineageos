@@ -321,17 +321,19 @@ if [ "$DISK_AVAIL" -lt 5000000 ]; then
 fi
 
 status=1
-# 后台资源监控：记录编译期间内存/swap/进程数，失败后用于诊断
+# 后台资源监控：记录编译期间内存/swap/进程数 + 编译进度，失败后用于诊断
 MON_LOG="$SRC_ROOT/.buildmon.log"
 : > "$MON_LOG"
 (
   while true; do
-    printf '%s mem=%s swap=%s procs=%s load=%s\n' \
+    PROG="$(tail -c 200000 "$SRC_ROOT/build.log" 2>/dev/null | grep -aoE '\[ *[0-9]+% +[0-9]+/[0-9]+\]' | tail -1)"
+    printf '%s mem=%s swap=%s procs=%s load=%s prog=%s\n' \
       "$(date -u +%H:%M:%S)" \
       "$(free -m | awk '/Mem:/{printf "%d/%d", $7, $2}')" \
       "$(free -m | awk '/Swap:/{printf "%d", $3}')" \
       "$(ps -e --no-headers | wc -l)" \
       "$(cat /proc/loadavg | cut -d' ' -f1-3)" \
+      "${PROG:-none}" \
       >> "$MON_LOG"
     sleep 20
   done
