@@ -24,7 +24,7 @@ on:
         default: '2'
   push:
     branches: [main]
-    paths: ['.github/**', 'manifest/**', 'scripts/**']
+    paths: ['.github/**', 'manifest/**', 'scripts/**', 'device/**', 'kernel/**']
 
 jobs:
   build:
