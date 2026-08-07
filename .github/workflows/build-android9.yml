@@ -12,18 +12,16 @@ on:
         required: true
         default: 'manifest/c7ltechn.xml'
       runner:
-        description: 'Runner 类型（Android 9 需 Java 8，必须用 22.04；全量编译建议 8-core）'
+        description: 'Runner 类型（Android 9 需 Java 8，必须用 22.04。免费账户无 Larger Runner，只能用 ubuntu-22.04）'
         required: true
         default: 'ubuntu-22.04'
         type: choice
         options:
           - ubuntu-22.04
-          - ubuntu-22.04-4-core
-          - ubuntu-22.04-8-core
       build_jobs:
-        description: '并行编译任务数 (-j)；ubuntu-22.04 runner 为 4 核'
+        description: '并行编译任务数 (-j)。免费 runner 为 2 核/7GB，-j4 会因内存不足挂起，建议 2'
         required: false
-        default: '4'
+        default: '2'
   push:
     branches: [main]
     paths: ['.github/**', 'manifest/**', 'scripts/**']
@@ -31,8 +29,8 @@ on:
 jobs:
   build:
     # Android 9 (LOS 16.0) 需要 Java 8，官方 22.04 镜像自带。
-    # ubuntu-22.04(2核/7G) 免费但 6h 超时内大概率编不完，全量编译请选
-    # ubuntu-22.04-8-core（8核/32G/200G磁盘，需 Larger Runner 配额）。
+    # ubuntu-22.04 免费 runner 为 2 核/7GB；全量编译约 3-5h，6h 超时内
+    # 可行，但 -j4 会内存不足挂起，必须 -j2 + swap（见 Add swap 步骤）。
     runs-on: ${{ inputs.runner || 'ubuntu-22.04' }}
     timeout-minutes: 360
     env:
@@ -53,6 +51,14 @@ jobs:
           sudo apt-get clean
           docker image prune -af || true
           df -h
+
+      - name: Add swap (free runner 只有 7GB RAM，AOSP9 编译峰值超内存)
+        run: |
+          sudo fallocate -l 8G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Install build dependencies (Ubuntu 22.04 / Android 9)
         run: |
