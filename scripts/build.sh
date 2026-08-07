@@ -120,12 +120,14 @@ mkdir -p .repo/local_manifests
 cp "$PROJECT_ROOT/$MANIFEST" .repo/local_manifests/device.xml
 
 for attempt in 1 2 3; do
-  if repo sync -j"$SYNC_JOBS" -c --force-sync --no-clone-bundle --no-tags; then
+  if repo sync -j"$SYNC_JOBS" -c --force-sync --no-clone-bundle --no-tags --depth 1; then
     break
   fi
   echo "::warning::repo sync 失败（第 $attempt/3 次），重试..."
   [ "$attempt" -eq 3 ] && { echo "::error::repo sync 多次失败，退出"; exit 1; }
 done
+# 浅克隆已省一半磁盘；再清掉 .repo 里不需要的 git 对象，给 out/ 留空间
+echo "sync 后磁盘: $(df -h "$SRC_ROOT" | awk 'NR==2{print $4}') 可用"
 log_end
 
 # ---------- 5. C7 专用：设备树 / 内核 defconfig / vendor 生成 ----------

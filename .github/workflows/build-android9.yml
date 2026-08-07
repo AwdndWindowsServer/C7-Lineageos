@@ -47,10 +47,13 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
             /usr/local/share/powershell /usr/local/share/swift /usr/lib/mono \
-            /usr/local/lib/node_modules /root/.cargo /root/.rustup
+            /usr/local/lib/node_modules /root/.cargo /root/.rustup \
+            /opt/hostedtoolcache /usr/local/.ghcup /opt/az /opt/microsoft \
+            /usr/local/share/geckodriver /usr/local/lib/python3.*/site-packages/cv2
           sudo apt-get clean
           docker image prune -af || true
-          df -h
+          sudo swapoff /mnt/swapfile 2>/dev/null || true
+          df -h / | tail -1
 
       # 实测结论（关键！）：free runner 7GB RAM + 3GB 自带 swap。
       # 1) 手动加 8GB swap → swap 风暴静默挂死（glob 阶段大量内存被压进慢 swap）
