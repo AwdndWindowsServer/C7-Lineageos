@@ -156,10 +156,27 @@ if [ "$DEVICE" = "c7ltechn" ]; then
     echo "::notice::C7 原厂 blob 已从仓库自带复制（$(find "$EXTRACT_DIR/system" -type f | wc -l) 个文件）"
   elif [ -n "${C7_EXTRACT_URL:-}" ] && [ ! -f "$EXTRACT_DIR/system/vendor/etc/fstab.qcom" ]; then
     echo "::group::下载 C7 提取包 ($C7_EXTRACT_URL)"
-    if curl -fL --retry 3 --retry-delay 5 -o "$EXTRACT_DIR/system.tar.gz" "$C7_EXTRACT_URL" \
-        && tar xzf "$EXTRACT_DIR/system.tar.gz" -C "$EXTRACT_DIR"; then
-      C7_READY=1
-      echo "::notice::C7 原厂提取包下载并解压成功"
+    PKG="$EXTRACT_DIR/c7extract.zip"
+    if curl -fL --retry 3 --retry-delay 5 -o "$PKG" "$C7_EXTRACT_URL"; then
+      # 提取包是 zip，内含 c7extract/system.tar.gz（也可能直接含 system/）
+      if command -v unzip >/dev/null 2>&1; then
+        unzip -o "$PKG" -d "$EXTRACT_DIR" >/dev/null 2>&1
+      else
+        python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$PKG" "$EXTRACT_DIR"
+      fi
+      # 解压后定位 system.tar.gz（可能在 c7extract/ 或根）
+      SYS_TGZ=""
+      for cand in "$EXTRACT_DIR/c7extract/system.tar.gz" "$EXTRACT_DIR/system.tar.gz"; do
+        [ -f "$cand" ] && SYS_TGZ="$cand" && break
+      done
+      if [ -n "$SYS_TGZ" ]; then
+        tar xzf "$SYS_TGZ" -C "$EXTRACT_DIR"
+        C7_READY=1
+        echo "::notice::C7 原厂提取包下载并解压成功（system.tar.gz: $SYS_TGZ）"
+      else
+        echo "::warning::zip 内未找到 system.tar.gz，可能结构不同："
+        find "$EXTRACT_DIR" -maxdepth 2 -name "*.tar.gz" -o -maxdepth 2 -name "vendor" -type d 2>/dev/null | head -5
+      fi
     else
       echo "::warning::C7 提取包下载失败（URL: $C7_EXTRACT_URL），回退 j7 blobs 兜底"
     fi

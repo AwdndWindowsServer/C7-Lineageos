@@ -39,7 +39,7 @@ jobs:
       MANIFEST: ${{ inputs.manifest || 'manifest/c7ltechn.xml' }}
       BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
       SYNC_JOBS: '4'
-      C7_EXTRACT_URL: https://github.com/AwdndWindowsServer/C7-Lineageos/releases/download/c7-extract-v1/system.tar.gz
+      C7_EXTRACT_URL: https://github.com/AwdndWindowsServer/C7-Lineageos1/releases/download/shs/c7extract.zip
     steps:
       - uses: actions/checkout@v4
 
