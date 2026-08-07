@@ -1,0 +1,37 @@
+version: v1.0
+name: Build LineageOS 16.0 (c7ltechn)
+agent:
+  machine:
+    type: e2-standard-4
+    os_image: ubuntu2204
+execution_time_limit:
+  hours: 8
+auto_cancel:
+  running:
+    when: "branch != 'main'"
+global_job_config:
+  prologue:
+    commands:
+      - checkout
+  env_vars:
+    - name: LOS_BRANCH
+      value: lineage-16.0
+    - name: DEVICE
+      value: c7ltechn
+    - name: MANIFEST
+      value: manifest/c7ltechn.xml
+    - name: TARGET
+      value: bacon
+    - name: SYNC_JOBS
+      value: "4"
+    - name: BUILD_JOBS
+      value: "4"
+blocks:
+  - name: Build LOS16
+    task:
+      jobs:
+        - name: Full build (sync + vendor + mka)
+          commands:
+            - echo "Runner: $(nproc) vCPU / $(free -h | awk '/Mem:/{print $2}') RAM"
+            - echo "Disk: $(df -h / | awk 'NR==2{print $2}')"
+            - bash scripts/build.sh

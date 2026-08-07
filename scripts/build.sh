@@ -79,13 +79,21 @@ log_end
 # ---------- 2. Java 8（Android 9 必需） ----------
 log_group "Java 8"
 JAVA8="$(ls -d /usr/lib/jvm/java-8-openjdk-* 2>/dev/null | head -n1 || true)"
+if [ -z "$JAVA8" ]; then
+  echo "::warning::未找到 OpenJDK 8，尝试安装（Semaphore 镜像预装 11/17）"
+  sudo apt-get update -qq 2>/dev/null || true
+  sudo apt-get install -y -qq openjdk-8-jdk 2>&1 | tail -1 || true
+  JAVA8="$(ls -d /usr/lib/jvm/java-8-openjdk-* 2>/dev/null | head -n1 || true)"
+fi
 if [ -n "$JAVA8" ]; then
   sudo update-alternatives --set java "$JAVA8/bin/java" 2>/dev/null || true
   export JAVA_HOME="$JAVA8"
   # 直接前置 PATH，确保 `java` 解析到 8（update-alternatives 在 runner 上可能不生效）
   export PATH="$JAVA8/bin:$PATH"
 else
-  echo "::warning::未找到 OpenJDK 8，Android 9 构建需要它"
+  echo "::error::无法获得 OpenJDK 8，Android 9 构建需要它"
+  echo "::error::请确认 runner 系统是 Ubuntu 22.04 且 apt 源可访问 openjdk-8-jdk"
+  exit 1
 fi
 java -version 2>&1 | head -n1
 log_end
@@ -283,6 +291,17 @@ fi
 # mka 失败时自动重试一次（AOSP 编译偶发 OOM/资源竞争，重跑常能过）。
 # 重试仍失败才报错退出。
 log_group "mka $TARGET -j$BUILD_JOBS"
+
+# 资源自检：磁盘不够会中途炸，先量化
+DISK_AVAIL="$(df -Pk "$SRC_ROOT" | awk 'NR==2{print $4}')"   # KB
+MEM_TOTAL="$(awk '/MemTotal/{print $2}' /proc/meminfo)"      # KB
+echo "磁盘可用: $((DISK_AVAIL/1048576)) GB | 内存: $((MEM_TOTAL/1048576)) GB | BUILD_JOBS=$BUILD_JOBS"
+if [ "$DISK_AVAIL" -lt 5000000 ]; then
+  echo "::error::磁盘可用空间不足 5GB（仅 $((DISK_AVAIL/1048576)) GB），编译将失败"
+  echo "::error::AOSP 全量需要 ~60GB：源码 38G + out 22G。请用更大磁盘的 runner"
+  exit 1
+fi
+
 status=1
 for attempt in 1 2; do
   echo "==== 构建尝试 $attempt/2（mka $TARGET -j$BUILD_JOBS）===="
