@@ -54,10 +54,14 @@ jobs:
 
       - name: Add swap (free runner 只有 7GB RAM，AOSP9 编译峰值超内存)
         run: |
-          sudo fallocate -l 8G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=8192
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          free -h
+          swapon --show || true
+          # 注意：runner 镜像自带 /swapfile（Text file busy），不能在原地重建；
+          # 在 /mnt 下新建独立的 swapfile，与系统自带的叠加使用。
+          sudo fallocate -l 8G /mnt/swapfile || sudo dd if=/dev/zero of=/mnt/swapfile bs=1M count=8192
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
           free -h
 
       - name: Install build dependencies (Ubuntu 22.04 / Android 9)
