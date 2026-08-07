@@ -83,6 +83,20 @@ log_end
 
 # ---------- 5. C7 专用：内核 defconfig + vendor 生成 ----------
 if [ "$DEVICE" = "c7ltechn" ]; then
+  log_group "C7 设备树同步"
+  # manifest 用 self remote 拉本仓库到 device/samsung/c7ltechn，但 repo sync
+  # 对与 CI checkout 同源的仓库可能静默跳过/失败，这里直接用 CI checkout 副本补齐。
+  SYNCED_DT="$SRC_ROOT/device/samsung/c7ltechn"
+  if [ ! -f "$SYNCED_DT/proprietary-files.txt" ]; then
+    mkdir -p "$(dirname "$SYNCED_DT")"
+    rm -rf "$SYNCED_DT"
+    cp -a "$PROJECT_ROOT/device/samsung/c7ltechn" "$SYNCED_DT"
+    echo "设备树已从 CI checkout 复制到 $SYNCED_DT"
+  else
+    echo "设备树已由 repo sync 提供"
+  fi
+  log_end
+
   log_group "C7 内核 defconfig"
   KCFG="kernel/samsung/msm8953/arch/arm64/configs/c7ltechn_defconfig"
   if [ ! -f "$KCFG" ]; then

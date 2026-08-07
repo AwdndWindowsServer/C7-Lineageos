@@ -8,10 +8,6 @@
 -->
 <manifest>
   <remote name="msm8953" fetch="https://github.com/Galaxy-MSM8953/" />
-  <remote name="self" fetch="https://github.com/AwdndWindowsServer/" />
-
-  <!-- 设备树：本仓库自维护 -->
-  <project path="device/samsung/c7ltechn" name="C7-Lineageos" remote="self" revision="main" />
 
   <!-- 内核：lineage-16.0 分支已含 c7ltechn defconfig 依赖的 C7 全套 DTS -->
   <project path="kernel/samsung/msm8953" name="android_kernel_samsung_msm8953" remote="msm8953" revision="lineage-16.0" />
