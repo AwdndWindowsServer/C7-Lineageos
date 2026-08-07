@@ -321,6 +321,22 @@ if [ "$DISK_AVAIL" -lt 5000000 ]; then
 fi
 
 status=1
+# 后台资源监控：记录编译期间内存/swap/进程数，失败后用于诊断
+MON_LOG="$SRC_ROOT/.buildmon.log"
+: > "$MON_LOG"
+(
+  while true; do
+    printf '%s mem=%s swap=%s procs=%s load=%s\n' \
+      "$(date -u +%H:%M:%S)" \
+      "$(free -m | awk '/Mem:/{printf "%d/%d", $7, $2}')" \
+      "$(free -m | awk '/Swap:/{printf "%d", $3}')" \
+      "$(ps -e --no-headers | wc -l)" \
+      "$(cat /proc/loadavg | cut -d' ' -f1-3)" \
+      >> "$MON_LOG"
+    sleep 20
+  done
+) &
+MON_PID=$!
 for attempt in 1 2; do
   echo "==== 构建尝试 $attempt/2（mka $TARGET -j$BUILD_JOBS）===="
   set +e
@@ -338,11 +354,16 @@ for attempt in 1 2; do
     sleep 30
   fi
 done
+kill "$MON_PID" 2>/dev/null || true
 log_end
 
 if [ "$status" -ne 0 ]; then
   echo "::error::构建失败 (exit $status，重试后仍失败)，build.log 末尾："
   tail -n 40 "$SRC_ROOT/build.log" || true
+  echo "::error::==== 资源监控日志（编译期间内存/swap/进程数）===="
+  cat "$MON_LOG" 2>/dev/null | tail -30 || true
+  echo "::error::==== 磁盘状况 ===="
+  df -h "$SRC_ROOT" 2>/dev/null | tail -1
   exit "$status"
 fi
 
