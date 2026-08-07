@@ -89,7 +89,18 @@ jobs:
           sudo chmod a+x /usr/local/bin/repo
 
       - name: Build
-        run: bash scripts/build.sh
+        run: |
+          # 独立资源监控：脱离 build.sh 进程树，即使脚本被强杀也能记录
+          nohup bash -c 'while true; do echo "$(date -u +%H:%M:%S) mem=$(free -m | awk "/Mem:/{printf \"%d/%d\", \$7, \$2}") swap=$(free -m | awk "/Swap:/{printf \"%d\", \$3}") procs=$(ps -e --no-headers | wc -l) load=$(cut -d" " -f1-3 /proc/loadavg)" >> /tmp/wfmon.log 2>&1; sleep 15; done' >/dev/null 2>&1 &
+          bash scripts/build.sh
+
+      - name: Diagnose on failure
+        if: always()
+        run: |
+          echo "=== workflow 独立监控日志 ==="
+          cat /tmp/wfmon.log 2>/dev/null | tail -40 || true
+          echo "=== dmesg (OOM 痕迹) ==="
+          sudo dmesg 2>/dev/null | tail -20 || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
