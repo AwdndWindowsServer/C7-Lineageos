@@ -61,9 +61,6 @@ PRODUCT_PROPERTY_OVERRIDES += \
     ro.qualcomm.bt.hci_transport=smd \
     vendor.qcom.bluetooth.soc=smd
 
-# Dalvik
-$(call inherit-product, frameworks/native/build/phone-xxhdpi-3072-dalvik-heap.mk)
-
 # Display
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.sf.lcd_density=420
