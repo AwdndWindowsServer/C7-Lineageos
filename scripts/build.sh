@@ -170,8 +170,13 @@ if [ "$DEVICE" = "c7ltechn" ]; then
   while IFS= read -r line; do
     case "$line" in ""|"#"*) continue;; esac
     line="${line%%|*}"
-    src="${line%%:*}"; dest="${line#*:}"
+    src="${line%%:*}"
+    dest="${line#*:}"
     [ "$src" = "$line" ] && dest="$src"
+    src="$(printf '%s' "${src#-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    dest="$(printf '%s' "${dest#-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    # LOS 以 - 前缀表示"可选 blob"：跳过提取但保留 makefile 条目
+    [ -z "$src" ] && continue
     sfile="$EXTRACT_DIR/system/$src"
     jfile="$J7_PROP/$dest"
     if [ -f "$sfile" ]; then

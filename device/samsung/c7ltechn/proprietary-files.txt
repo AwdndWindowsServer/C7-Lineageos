@@ -643,7 +643,7 @@ vendor/lib64/vendor.samsung.hardware.radio.channel@1.0_vendor.so
 vendor/lib64/vendor.samsung.hardware.radio.secoemhook@1.0_vendor.so
 
 # Sensors
-vendor/lib/libyasalgo.so		
+vendor/lib/libyasalgo.so
 vendor/lib/hw/sensors.msm8953.so
 vendor/lib64/libyasalgo.so
 vendor/lib64/hw/sensors.msm8953.so
