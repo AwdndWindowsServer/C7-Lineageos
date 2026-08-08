@@ -10,6 +10,7 @@
 #   SYNC_JOBS    repo sync 并行数     (默认 4)
 #   BUILD_JOBS   make 并行数          (默认取 nproc)
 #   USE_CCACHE   是否启用 ccache      (0/1，默认 0)
+#   SHALLOW      浅克隆（repo --depth 1，省磁盘/省时间） (0/1，默认 0)
 #   SRC_ROOT     源码根目录           (默认 $PWD/android)
 #
 # 注意：绝不能加 set -u！Android 9 的 build/envsetup.sh 在 bash 4.4+ 的
@@ -24,6 +25,7 @@ TARGET="${TARGET:-bacon}"
 SYNC_JOBS="${SYNC_JOBS:-4}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 USE_CCACHE="${USE_CCACHE:-0}"
+SHALLOW="${SHALLOW:-0}"
 SRC_ROOT="${SRC_ROOT:-$PWD/android}"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -113,7 +115,11 @@ mkdir -p "$SRC_ROOT"
 cd "$SRC_ROOT"
 
 if [ ! -d .repo ]; then
-  repo init -u https://github.com/LineageOS/android.git -b "$LOS_BRANCH"
+  if [ "$SHALLOW" = "1" ]; then
+    repo init -u https://github.com/LineageOS/android.git -b "$LOS_BRANCH" --depth 1
+  else
+    repo init -u https://github.com/LineageOS/android.git -b "$LOS_BRANCH"
+  fi
 fi
 
 mkdir -p .repo/local_manifests

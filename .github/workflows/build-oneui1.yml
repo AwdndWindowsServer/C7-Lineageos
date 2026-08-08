@@ -1,0 +1,223 @@
+name: Build C7 One UI 1 (A6+ port)
+
+# C7 (SM-C7000) × One UI 1 (Android 9)
+#   base = a6plte (Galaxy A6+, SM-A605FN) 官方 One UI 固件（同骁龙 625/msm8953）
+#   kernel/boot = C7 自己编的 Android 9 boot.img（scripts/build.sh 16.0 管线）
+#   纯三星→三星移植，不碰 LineageOS 框架
+#
+# 流程：
+#   A. 编译 C7 Android 9 boot.img（历史卡点：内核能否编过，TARGET=bootimage 先验证）
+#   B. samloader 下载 a6plte One UI 固件（可 a6_firmware_url 直链代替）
+#   C. 解包 system.img(+vendor.img) → 合并 → oneui1_assemble.py 出 flashable zip
+#
+# 注意：A6+ 最后官方版本是 Android 10（One UI 2.0）。要 One UI 1 必须给
+#       a6_version 填 Android 9 的具体版本号（在 samfrew.com/model/SM-A605FN/
+#       找 Android 9 的 build，如 A605FNXXU4BSA1），否则自动取最新版=One UI 2。
+
+on:
+  workflow_dispatch:
+    inputs:
+      a6_model:
+        description: 'a6plte 型号（SM-A605FN / SM-A6050 / SM-A605G）'
+        required: false
+        default: 'SM-A605FN'
+      a6_region:
+        description: 'CSC 地区码（如 XEU=英版 / CHC=国行）'
+        required: false
+        default: 'XEU'
+      a6_version:
+        description: '固件版本（One UI 1 需 Android 9 版本，如 A605FNXXU4BSA1；留空取最新）'
+        required: false
+        default: ''
+      a6_firmware_url:
+        description: '固件 zip 直链（可选，优先于 samloader）'
+        required: false
+        default: ''
+      build_jobs:
+        description: '编译并行数'
+        required: false
+        default: '2'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-oneui1.yml', 'manifest/c7ltechn.xml', 'scripts/build.sh', 'scripts/oneui1*', 'kernel/patches/**', 'device/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 420
+    env:
+      LOS_BRANCH: lineage-16.0
+      DEVICE: c7ltechn
+      MANIFEST: manifest/c7ltechn.xml
+      A6_MODEL: ${{ inputs.a6_model || 'SM-A605FN' }}
+      A6_REGION: ${{ inputs.a6_region || 'XEU' }}
+      A6_VERSION: ${{ inputs.a6_version }}
+      A6_FW_URL: ${{ inputs.a6_firmware_url }}
+      BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
+      SRC_ROOT: ${{ github.workspace }}/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/local/share/swift /usr/lib/mono \
+            /usr/local/lib/node_modules /root/.cargo /root/.rustup \
+            /opt/hostedtoolcache /opt/az /opt/microsoft
+          sudo apt-get clean
+          docker image prune -af || true
+          df -h / | tail -1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git gnupg gperf lib32ncurses-dev lib32readline-dev lib32z1-dev \
+            liblz4-tool libncurses-dev libsdl1.2-dev libssl-dev libtinfo5 \
+            libxml2 libxml2-utils lzop pngcrush python2.7 python3-pip \
+            rsync schedtool squashfs-tools xsltproc unzip zip zlib1g-dev \
+            e2fsprogs lz4 p7zip-full || true
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python2 || true
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncursesw.so.6 /usr/lib/x86_64-linux-gnu/libncursesw.so.5 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
+          sudo curl -sSL https://storage.googleapis.com/git-repo-downloads/repo -o /usr/local/bin/repo
+          sudo chmod a+x /usr/local/bin/repo
+
+      - name: Select OpenJDK 8 (Android 9 requires JDK8)
+        run: |
+          JAVA8="$(ls -d /usr/lib/jvm/java-8-openjdk-amd64 /usr/lib/jvm/temurin-8-jdk-amd64 2>/dev/null | head -1)"
+          if [ -z "$JAVA8" ]; then
+            echo "downloading Temurin JDK8..."
+            curl -fsSL -o /tmp/jdk8.tgz \
+              "https://api.adoptium.net/v3/binary/latest/8/ga/linux/x64/jdk/hotspot/normal/eclipse"
+            sudo mkdir -p /usr/lib/jvm/java-8-openjdk-amd64
+            sudo tar -xzf /tmp/jdk8.tgz -C /usr/lib/jvm/java-8-openjdk-amd64 --strip-components=1
+            JAVA8=/usr/lib/jvm/java-8-openjdk-amd64
+          fi
+          echo "JAVA_HOME=$JAVA8" >> "$GITHUB_ENV"
+          echo "$JAVA8/bin" >> "$GITHUB_PATH"
+          "$JAVA8/bin/java" -version 2>&1 | head -1
+
+      - name: Build C7 Android 9 boot.img (kernel gate)
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          DEVICE="$DEVICE" MANIFEST="$MANIFEST" TARGET=bootimage \
+            BUILD_JOBS="$BUILD_JOBS" SHALLOW=1 bash scripts/build.sh
+          BOOT="$SRC_ROOT/out/target/product/$DEVICE/boot.img"
+          test -f "$BOOT" || { echo "boot.img 未产出"; exit 1; }
+          ls -lh "$BOOT"
+        shell: bash
+
+      - name: Build simg2img host tool
+        if: false
+        run: echo "由 extract 步骤内联兜底（缺 simg2img 时自动 mka）"
+
+      - name: Download a6plte One UI firmware
+        run: |
+          mkdir -p "$SRC_ROOT/fw"
+          cd "$SRC_ROOT/fw"
+          if [ -n "$A6_FW_URL" ]; then
+            echo "使用直链: $A6_FW_URL"
+            curl -fL --retry 3 -o fw.zip "$A6_FW_URL"
+          else
+            pip3 install -q git+https://github.com/samloader/samloader.git
+            VER="$A6_VERSION"
+            if [ -z "$VER" ]; then
+              echo "自动查最新版本（注意：A6+ 最新是 Android 10/One UI 2.0）..."
+              VER="$(samloader -m "$A6_MODEL" -r "$A6_REGION" checkupdate 2>/dev/null)"
+              echo "最新版本: $VER"
+            fi
+            [ -n "$VER" ] || { echo "samloader checkupdate 失败，请填 a6_version 或 a6_firmware_url"; exit 1; }
+            echo "samloader download -m $A6_MODEL -r $A6_REGION -v $VER ..."
+            samloader -m "$A6_MODEL" -r "$A6_REGION" download -v "$VER" -O . 2>&1 | tail -3
+            ENC="$(ls *.enc* 2>/dev/null | head -1)"
+            [ -n "$ENC" ] || { echo "下载产物不是 .enc*，可能已直出 zip"; ls -la; }
+            if [ -n "$ENC" ]; then
+              samloader -m "$A6_MODEL" -r "$A6_REGION" decrypt -v "$VER" -V 4 -i "$ENC" -o fw.zip 2>&1 | tail -3 || {
+                echo "解密 v4 失败，尝试 V 2 ..."
+                samloader -m "$A6_MODEL" -r "$A6_REGION" decrypt -v "$VER" -V 2 -i "$ENC" -o fw.zip 2>&1 | tail -3 || exit 1
+              }
+            else
+              mv *.zip fw.zip 2>/dev/null || true
+            fi
+          fi
+          test -f fw.zip || { echo "无固件 zip"; exit 1; }
+          ls -lh fw.zip
+
+      - name: Extract One UI system (system.img + vendor.img)
+        run: |
+          cd "$SRC_ROOT/fw"
+          unzip -o -q fw.zip -d fwx || 7z x -y fw.zip -ofwx
+          AP="$(ls fwx/AP_*.tar.md5 2>/dev/null | head -1)"
+          [ -n "$AP" ] || { echo "未找到 AP_*.tar.md5"; ls -la fwx; exit 1; }
+          tar xf "$AP" -C fwx
+          ls -la fwx
+          SIMG2IMG="$SRC_ROOT/out/host/linux-x86/bin/simg2img"
+          mkdir -p sys/system sys/vendor sys/product
+          dump_img() {
+            local img="$1" out="$2"
+            [ -f "$img" ] || return 0
+            if [[ "$img" == *.lz4 ]]; then lz4 -d -f "$img" "${img%.lz4}" >/dev/null 2>&1; img="${img%.lz4}"; fi
+            if file "$img" | grep -q "sparse"; then
+              echo "sparse → simg2img: $img"
+              "$SIMG2IMG" "$img" "$img.raw" || { echo "无 simg2img，尝试 mka ..."; cd "$SRC_ROOT" && source build/envsetup.sh >/dev/null 2>&1 && lunch lineage_${DEVICE}-userdebug >/dev/null 2>&1 && mka simg2img -j"$BUILD_JOBS" >/dev/null 2>&1; "$SIMG2IMG" "$img" "$img.raw"; }
+              img="$img.raw"
+            fi
+            echo "debugfs rdump: $img → $out"
+            debugfs -R "rdump / $out" "$img" 2>&1 | tail -2 || true
+            [ -n "$(ls -A "$out" 2>/dev/null)" ] || echo "警告: $out 为空"
+          }
+          dump_img fwx/system.img sys/system
+          dump_img fwx/vendor.img sys/vendor
+          dump_img fwx/product.img sys/product
+          # 合并 vendor/product 进 system（C7 单分区结构）
+          [ -n "$(ls -A sys/vendor 2>/dev/null)" ] && cp -a sys/vendor/. sys/system/vendor/ 2>/dev/null || true
+          [ -n "$(ls -A sys/product 2>/dev/null)" ] && cp -a sys/product/. sys/system/product/ 2>/dev/null || true
+          test -d sys/system/app || { echo "system 树无效"; ls sys/system | head; exit 1; }
+          echo "system 树: $(find sys/system -type f | wc -l) 个文件"
+
+      - name: Assemble C7 One UI 1 zip
+        run: |
+          python3 "$GITHUB_WORKSPACE/scripts/oneui1_assemble.py" \
+            --system "$SRC_ROOT/fw/sys/system" \
+            --boot "$SRC_ROOT/out/target/product/$DEVICE/boot.img" \
+            --out "$GITHUB_WORKSPACE/C7_OneUI1_unsigned.zip"
+          ls -lh "$GITHUB_WORKSPACE/C7_OneUI1_unsigned.zip"
+
+      - name: Diagnose on failure
+        if: always()
+        run: |
+          {
+            echo "=== build.log 尾部 ==="
+            tail -c 3000 "$SRC_ROOT/build.log" 2>/dev/null | tail -25 || true
+            echo "=== build.log error 行 ==="
+            grep -aE "error:|Error|fatal|undefined|No such file|multiple definition" \
+              "$SRC_ROOT/build.log" 2>/dev/null | tail -25 || true
+            echo "=== buildmon ==="
+            cat "$SRC_ROOT/.buildmon.log" 2>/dev/null | tail -20 || true
+            echo "=== 磁盘 ==="
+            df -h / 2>/dev/null | tail -2
+          } | tee "$GITHUB_WORKSPACE/diag.txt"
+          mkdir -p "$GITHUB_WORKSPACE/diag"
+          cp "$SRC_ROOT/build.log" "$GITHUB_WORKSPACE/diag/build.log" 2>/dev/null || true
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag-logs
+          path: diag/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: c7-oneui1
+          path: |
+            ${{ github.workspace }}/C7_OneUI1_unsigned.zip
+            ${{ github.workspace }}/android/out/target/product/${{ env.DEVICE }}/boot.img
+          if-no-files-found: warn
+          retention-days: 14
