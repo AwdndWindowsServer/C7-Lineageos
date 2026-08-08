@@ -1,12 +1,10 @@
 diff --git a/drivers/fingerprint/et320-spi.c b/drivers/fingerprint/et320-spi.c
 --- a/drivers/fingerprint/et320-spi.c
 +++ b/drivers/fingerprint/et320-spi.c
-@@ -1268,7 +1268,8 @@ static int __init etspi_init(void)
+@@ -1266,7 +1266,8 @@ static int __init etspi_init(void)
+ {
+ 	int status;
++	extern int FP_CHECK;
+ 	pr_info("%s\n", __func__);
  
  #if defined(CONFIG_SENSORS_FINGERPRINT_DUALIZATION) \
- 		&& defined(CONFIG_SENSORS_VFS7XXX)
- 	/* vendor check */
-+	extern int FP_CHECK;
- 	pr_info("%s FP_CHECK value (%d)\n", __func__, FP_CHECK);
- 	if (FP_CHECK) {
- 		pr_err("%s It is not egis sensor\n", __func__);

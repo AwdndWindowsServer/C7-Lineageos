@@ -1,0 +1,19 @@
+diff --git a/drivers/staging/android/alarm-dev.c b/drivers/staging/android/alarm-dev.c
+--- a/drivers/staging/android/alarm-dev.c
++++ b/drivers/staging/android/alarm-dev.c
+@@ -97,6 +97,13 @@ static void devalarm_cancel(struct devalarm *alrm)
+ 		alarm_cancel(&alrm->u.alrm);
+ 	else
+ 		hrtimer_cancel(&alrm->u.hrt);
+ }
+ 
++static void set_power_on_alarm(void)
++{
++	/* Not implemented on the msm8953 A6 kernel; provided so the
++	 * RTC_POWEROFF_WAKEUP call site compiles.
++	 */
++}
++
+ static void alarm_clear(enum android_alarm_type alarm_type, struct timespec *ts)
+ {
+ 	uint32_t alarm_type_mask = 1U << alarm_type;
