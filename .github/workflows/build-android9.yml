@@ -44,6 +44,7 @@ jobs:
       TARGET: ${{ inputs.target || 'bacon' }}
       BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
       SYNC_JOBS: '4'
+      SHALLOW: '1'
       C7_EXTRACT_URL: https://github.com/AwdndWindowsServer/C7-Lineageos1/releases/download/shs/c7extract.zip
     steps:
       - uses: actions/checkout@v4
@@ -92,6 +93,21 @@ jobs:
           sudo curl -sSL https://storage.googleapis.com/git-repo-downloads/repo \
             -o /usr/local/bin/repo
           sudo chmod a+x /usr/local/bin/repo
+
+      - name: Select OpenJDK 8 (Android 9 requires JDK8)
+        run: |
+          JAVA8="$(ls -d /usr/lib/jvm/java-8-openjdk-amd64 /usr/lib/jvm/temurin-8-jdk-amd64 2>/dev/null | head -1)"
+          if [ -z "$JAVA8" ]; then
+            echo "downloading Temurin JDK8..."
+            curl -fsSL -o /tmp/jdk8.tgz \
+              "https://api.adoptium.net/v3/binary/latest/8/ga/linux/x64/jdk/hotspot/normal/eclipse"
+            sudo mkdir -p /usr/lib/jvm/java-8-openjdk-amd64
+            sudo tar -xzf /tmp/jdk8.tgz -C /usr/lib/jvm/java-8-openjdk-amd64 --strip-components=1
+            JAVA8=/usr/lib/jvm/java-8-openjdk-amd64
+          fi
+          echo "JAVA_HOME=$JAVA8" >> "$GITHUB_ENV"
+          echo "$JAVA8/bin" >> "$GITHUB_PATH"
+          "$JAVA8/bin/java" -version 2>&1 | head -1
 
       - name: Build
         run: |
