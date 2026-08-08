@@ -385,6 +385,35 @@ if [ "$status" -ne 0 ]; then
   cat "$MON_LOG" 2>/dev/null | tail -30 || true
   echo "::error::==== 磁盘状况 ===="
   df -h "$SRC_ROOT" 2>/dev/null | tail -1
+
+  # ---------- 内核驱动全量诊断 ----------
+  # ninja 在内核第一个错误处停止。这里对已配置的 KERNEL_OBJ 直接跑
+  # make -k，增量编译剩余驱动，一次暴露所有编译错误（供批量打补丁）。
+  if [ "$DEVICE" = "c7ltechn" ]; then
+    log_group "内核驱动全量诊断 (make -k)"
+    KSRC="$SRC_ROOT/kernel/samsung/msm8953"
+    KOBJ="$(find "$SRC_ROOT/out/target/product/$DEVICE/obj" -maxdepth 1 -type d -name "KERNEL_OBJ" 2>/dev/null | head -1)"
+    CROSS_BIN="$SRC_ROOT/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin"
+    if [ -d "$KSRC" ] && [ -n "$KOBJ" ] && [ -x "$CROSS_BIN/aarch64-linux-android-gcc" ] \
+       && [ -f "$KOBJ/.config" ]; then
+      echo "::notice::make -k 内核全量诊断开始（KERNEL_OBJ: $KOBJ），收集所有驱动错误，请耐心等待..."
+      make -C "$KSRC" O="$KOBJ" ARCH=arm64 \
+        CROSS_COMPILE="$CROSS_BIN/aarch64-linux-android-" \
+        -k -j"$BUILD_JOBS" Image.gz-dtb 2>&1 | tee "$SRC_ROOT/kernel-diag.log" || true
+      # 错误汇总（去重、去 make 噪音）
+      ERRSUM="$SRC_ROOT/kernel-diag-errors.txt"
+      grep -aE "error:|multiple definition|undefined reference|undeclared" "$SRC_ROOT/kernel-diag.log" \
+        | grep -avE "make(\[[0-9]+\])?:" | sort -u > "$ERRSUM" || true
+      echo "::error::==== 内核驱动错误汇总（$(wc -l < "$ERRSUM" 2>/dev/null || echo 0) 处）===="
+      cat "$ERRSUM" 2>/dev/null || true
+      echo "::error::==== 结束 ===="
+    else
+      echo "::warning::跳过内核诊断：内核源码/KERNEL_OBJ/工具链/.config 不齐"
+      echo "  KSRC=$KSRC KOBJ=$KOBJ gcc=$CROSS_BIN/aarch64-linux-android-gcc"
+    fi
+    log_end
+  fi
+
   exit "$status"
 fi
 

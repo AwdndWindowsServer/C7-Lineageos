@@ -121,12 +121,19 @@ jobs:
             ps aux --sort=-%mem 2>/dev/null | head -8
             echo "=== 内核补丁应用验证 ==="
             grep -n "sec_charging_common" android/kernel/samsung/msm8953/include/linux/mfd/sm5705/sm5705.h 2>/dev/null || echo "!!! sm5705.h 不存在"
+            echo "=== 内核驱动错误汇总 (kernel-diag-errors.txt) ==="
+            cat android/kernel-diag-errors.txt 2>/dev/null | head -80 || true
+            echo "=== kernel-diag.log 里的错误行 ==="
+            grep -aE "error:|multiple definition|undefined reference|undeclared" android/kernel-diag.log 2>/dev/null | tail -30 || true
           } | tee /tmp/diag.txt
           # 归档诊断供后续下载
           mkdir -p "$GITHUB_WORKSPACE/diag" && cp /tmp/diag.txt "$GITHUB_WORKSPACE/diag/" 2>/dev/null || true
           # 上传完整 build.log（含内核错误全文）
           cp android/build.log "$GITHUB_WORKSPACE/diag/build.log" 2>/dev/null || true
-          echo "诊断输出已写到 diag.txt + build.log"
+          # 上传内核全量诊断日志（make -k 汇总所有驱动错误）
+          cp android/kernel-diag.log "$GITHUB_WORKSPACE/diag/kernel-diag.log" 2>/dev/null || true
+          cp android/kernel-diag-errors.txt "$GITHUB_WORKSPACE/diag/kernel-diag-errors.txt" 2>/dev/null || true
+          echo "诊断输出已写到 diag.txt + build.log + kernel-diag.log"
 
       - name: Upload diagnostics
         if: always()
