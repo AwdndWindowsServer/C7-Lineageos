@@ -954,7 +954,7 @@
 # CONFIG_KEYBOARD_XTKBD is not set
 # CONFIG_KGDB is not set
 # CONFIG_KNOX_KAP is not set
-# CONFIG_KNOX_NCM is not set
+CONFIG_KNOX_NCM=y
 # CONFIG_KS8842 is not set
 # CONFIG_KS8851 is not set
 # CONFIG_KS8851_MLL is not set
@@ -1000,7 +1000,7 @@
 # CONFIG_LEDS_PCA963X is not set
 # CONFIG_LEDS_PWM is not set
 # CONFIG_LEDS_QPNP is not set
-# CONFIG_LEDS_QPNP_FLASH is not set
+CONFIG_LEDS_QPNP_FLASH=y
 # CONFIG_LEDS_QPNP_WLED is not set
 # CONFIG_LEDS_REGULATOR is not set
 # CONFIG_LEDS_S2MU005 is not set

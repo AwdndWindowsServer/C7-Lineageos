@@ -1,0 +1,19 @@
+diff --git a/drivers/nfc/pn547.c b/drivers/nfc/pn547.c
+--- a/drivers/nfc/pn547.c
++++ b/drivers/nfc/pn547.c
+@@ -311,6 +311,15 @@
+ 	return 0;
+ }
+ 
++int ese_spi_pinctrl(int enable)
++{
++	/* No separate ESE SPI controller on c7ltechn; the factory SPI
++	 * pinctrl helper is a no-op.
++	 */
++	(void)enable;
++	return 0;
++}
++
+ static int pn547_dev_release(struct inode *inode, struct file *filp)
+ {
+ #ifdef CONFIG_NFC_PN547_ESE_SUPPORT
