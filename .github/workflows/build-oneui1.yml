@@ -150,22 +150,28 @@ jobs:
       - name: Extract One UI system (system.img + vendor.img)
         run: |
           cd "$SRC_ROOT/fw"
-          # 处理 fw.tar（samloader-rs 产物，内含 BL/AP/CP/CSC 的 tar.md5）或 fw.zip（直链）
+          # 处理固件包：samloader-rs 产物 fw.tar 实际是 zip（*.zip.enc4 解密结果），
+          # 内含 BL/AP/CP/CSC 的 tar.md5；a6_firmware_url 直链可能是 zip
           rm -rf fwx && mkdir fwx
-          if [ -s fw.tar ]; then
-            tar xf fw.tar -C fwx 2>/dev/null || true
-          elif [ -s fw.zip ]; then
-            unzip -o -q fw.zip -d fwx || 7z x -y fw.zip -ofwx
-          fi
-          find fwx -maxdepth 2 -name "AP_*" -o -maxdepth 2 -name "*.tar.md5" | head -5 || true
-          # AP 包可能还在嵌套 tar 里（BL/AP/CP/CSC 同属 firmware tar 的子 tar）
-          AP="$(ls fwx/AP_*.tar.md5 2>/dev/null | head -1)"
-          if [ -z "$AP" ]; then
-            inner="$(find fwx -name "AP_*.tar*" | head -1)"
-            [ -n "$inner" ] && { mkdir -p fwx/ap && tar xf "$inner" -C fwx/ap; AP="$(ls fwx/ap/AP_* 2>/dev/null | head -1)"; }
-          fi
-          [ -n "$AP" ] || { echo "未找到 AP 包"; find fwx -maxdepth 3 | head -30; exit 1; }
-          tar xf "$AP" -C fwx 2>/dev/null || { mkdir -p fwx/ap2 && tar xf "$AP" -C fwx/ap2 && cp fwx/ap2/* fwx/ 2>/dev/null; }
+          FWPKG=""
+          for cand in fw.tar fw.zip; do
+            if [ -s "$cand" ]; then FWPKG="$cand"; break; fi
+          done
+          [ -n "$FWPKG" ] || { echo "无固件包"; exit 1; }
+          echo "固件包: $FWPKG ($(file -b "$FWPKG" | cut -c1-40))"
+          case "$(file -b "$FWPKG")" in
+            *Zip*|*zip*) unzip -o -q "$FWPKG" -d fwx || 7z x -y "$FWPKG" -ofwx ;;
+            *) tar xf "$FWPKG" -C fwx ;;
+          esac
+          echo "--- fwx 内容 ---"; find fwx -maxdepth 2 -type f | head -20
+          # 找到 AP 包（AP_*.tar.md5，含 system.img/boot.img/vendor.img）
+          AP="$(find fwx -name "AP_*.tar*" | head -1)"
+          [ -n "$AP" ] || { echo "未找到 AP 包"; find fwx -maxdepth 2 | head -30; exit 1; }
+          echo "AP: $AP"
+          mkdir -p fwx/ap && tar xf "$AP" -C fwx/ap 2>/dev/null || \
+            { echo "tar 解 AP 失败，尝试忽略 md5 尾"; mv "$AP" /tmp/ap.tar && tar xf /tmp/ap.tar -C fwx/ap; }
+          cp -n fwx/ap/* fwx/ 2>/dev/null || true
+          echo "--- AP 内容 ---"; ls -la fwx | grep -iE "system|vendor|boot|product|recovery" || ls -la fwx/ap | grep -iE "system|vendor|boot|product|recovery" || ls -la fwx/ap | head
           echo "--- AP 内容 ---"; ls -la fwx | grep -iE "system|vendor|boot|product" || true
           SIMG2IMG="$SRC_ROOT/out/host/linux-x86/bin/simg2img"
           mkdir -p sys/system sys/vendor sys/product
