@@ -1,0 +1,121 @@
+name: Build C7 Kernel (bootimage only)
+
+# 只编 C7 Android 9 内核 + ramdisk → boot.img。
+# 用途：先稳定内核，再手动跑 build-android9 (bacon 全量)。
+# 约 20-25 min（浅克隆 + bootimage）。
+on:
+  workflow_dispatch:
+    inputs:
+      build_jobs:
+        description: '并行编译任务数'
+        required: false
+        default: '2'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-kernel.yml'
+      - 'kernel/c7ltechn_defconfig'
+      - 'kernel/patches/**'
+      - 'device/samsung/c7ltechn/**'
+
+jobs:
+  kernel:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    env:
+      LOS_BRANCH: lineage-16.0
+      DEVICE: c7ltechn
+      MANIFEST: manifest/c7ltechn.xml
+      TARGET: bootimage
+      BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
+      SYNC_JOBS: '4'
+      SHALLOW: '1'
+      SRC_ROOT: ${{ github.workspace }}/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/local/share/swift /usr/lib/mono \
+            /usr/local/lib/node_modules /root/.cargo /root/.rustup \
+            /opt/hostedtoolcache /opt/az /opt/microsoft
+          sudo apt-get clean
+          docker image prune -af || true
+          df -h / | tail -1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git gnupg gperf lib32ncurses-dev lib32readline-dev lib32z1-dev \
+            liblz4-tool libncurses-dev libsdl1.2-dev libssl-dev libtinfo5 \
+            libxml2 libxml2-utils lzop pngcrush python2.7 rsync schedtool \
+            squashfs-tools xsltproc zip zlib1g-dev || true
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python2 || true
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncursesw.so.6 /usr/lib/x86_64-linux-gnu/libncursesw.so.5 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
+          sudo curl -sSL https://storage.googleapis.com/git-repo-downloads/repo -o /usr/local/bin/repo
+          sudo chmod a+x /usr/local/bin/repo
+
+      - name: Select OpenJDK 8 (Android 9 requires JDK8)
+        run: |
+          JAVA8="$(ls -d /usr/lib/jvm/java-8-openjdk-amd64 /usr/lib/jvm/temurin-8-jdk-amd64 2>/dev/null | head -1)"
+          if [ -z "$JAVA8" ]; then
+            echo "downloading Temurin JDK8..."
+            curl -fsSL -o /tmp/jdk8.tgz \
+              "https://api.adoptium.net/v3/binary/latest/8/ga/linux/x64/jdk/hotspot/normal/eclipse"
+            sudo mkdir -p /usr/lib/jvm/java-8-openjdk-amd64
+            sudo tar -xzf /tmp/jdk8.tgz -C /usr/lib/jvm/java-8-openjdk-amd64 --strip-components=1
+            JAVA8=/usr/lib/jvm/java-8-openjdk-amd64
+          fi
+          echo "JAVA_HOME=$JAVA8" >> "$GITHUB_ENV"
+          echo "$JAVA8/bin" >> "$GITHUB_PATH"
+          "$JAVA8/bin/java" -version 2>&1 | head -1
+
+      - name: Build kernel boot.img (mka bootimage)
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          DEVICE="$DEVICE" MANIFEST="$MANIFEST" TARGET="$TARGET" \
+            BUILD_JOBS="$BUILD_JOBS" SHALLOW="$SHALLOW" bash scripts/build.sh
+          BOOT="$SRC_ROOT/out/target/product/$DEVICE/boot.img"
+          test -f "$BOOT" || { echo "boot.img 未产出"; exit 1; }
+          ls -lh "$BOOT"
+        shell: bash
+
+      - name: Diagnose on failure
+        if: always()
+        run: |
+          {
+            echo "=== build.log 尾部 ==="
+            tail -c 3000 "$SRC_ROOT/build.log" 2>/dev/null | tail -25 || true
+            echo "=== build.log error 行 ==="
+            grep -aE "error:|Error|fatal|undefined|No such file|multiple definition" \
+              "$SRC_ROOT/build.log" 2>/dev/null | tail -25 || true
+            echo "=== buildmon ==="
+            cat "$SRC_ROOT/.buildmon.log" 2>/dev/null | tail -15 || true
+            echo "=== 磁盘 ==="
+            df -h / 2>/dev/null | tail -2
+          } | tee "$GITHUB_WORKSPACE/diag.txt"
+          mkdir -p "$GITHUB_WORKSPACE/diag"
+          cp "$SRC_ROOT/build.log" "$GITHUB_WORKSPACE/diag/build.log" 2>/dev/null || true
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag-logs
+          path: diag/
+          if-no-files-found: ignore
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: c7-kernel-bootimg
+          path: |
+            ${{ github.workspace }}/android/out/target/product/${{ env.DEVICE }}/boot.img
+          if-no-files-found: warn
+          retention-days: 14

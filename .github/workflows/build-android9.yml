@@ -28,7 +28,13 @@ on:
         default: '2'
   push:
     branches: [main]
-    paths: ['.github/**', 'manifest/**', 'scripts/**', 'device/**', 'kernel/**']
+    paths:
+      - '.github/workflows/build-android9.yml'
+      - 'manifest/c7ltechn.xml'
+      - 'scripts/build.sh'
+      - 'kernel/patches/**'
+      - 'kernel/c7ltechn_defconfig'
+      - 'device/samsung/c7ltechn/**'
 
 jobs:
   build:

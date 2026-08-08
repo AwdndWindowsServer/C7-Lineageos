@@ -31,7 +31,11 @@ on:
         default: '2'
   push:
     branches: [main]
-    paths: ['.github/**', 'manifest/c7ltechn-miui10.xml', 'scripts/miui10*', 'kernel/patches/**']
+    paths:
+      - '.github/workflows/build-miui10.yml'
+      - 'manifest/c7ltechn-miui10.xml'
+      - 'scripts/miui10_build_local.sh'
+      - 'scripts/miui10_port.py'
 
 jobs:
   build:

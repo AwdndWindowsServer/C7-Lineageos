@@ -42,7 +42,9 @@ on:
         default: '2'
   push:
     branches: [main]
-    paths: ['.github/workflows/build-oneui1.yml', 'manifest/c7ltechn.xml', 'scripts/build.sh', 'scripts/oneui1*', 'kernel/patches/**', 'device/**']
+    paths:
+      - '.github/workflows/build-oneui1.yml'
+      - 'scripts/oneui1_assemble.py'
 
 jobs:
   build:
