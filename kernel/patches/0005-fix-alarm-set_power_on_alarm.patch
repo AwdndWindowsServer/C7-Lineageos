@@ -1,9 +1,7 @@
 diff --git a/drivers/staging/android/alarm-dev.c b/drivers/staging/android/alarm-dev.c
 --- a/drivers/staging/android/alarm-dev.c
 +++ b/drivers/staging/android/alarm-dev.c
-@@ -97,6 +97,13 @@ static void devalarm_cancel(struct devalarm *alrm)
- 		alarm_cancel(&alrm->u.alrm);
- 	else
+@@ -95,6 +95,13 @@
  		hrtimer_cancel(&alrm->u.hrt);
  }
  

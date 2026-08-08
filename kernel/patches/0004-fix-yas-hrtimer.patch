@@ -1,7 +1,7 @@
 diff --git a/drivers/sensors/yas_mag_kernel.c b/drivers/sensors/yas_mag_kernel.c
 --- a/drivers/sensors/yas_mag_kernel.c
 +++ b/drivers/sensors/yas_mag_kernel.c
-@@ -482,7 +482,7 @@ static ssize_t yas_sw_reset_show(struct device *dev,
+@@ -481,7 +481,7 @@
  		data->mag.set_enable(1);
  		data->mag.set_delay(data->poll_delay);
  		hrtimer_start(&data->mag_timer, data->delay,
