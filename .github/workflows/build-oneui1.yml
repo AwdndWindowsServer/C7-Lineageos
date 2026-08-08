@@ -188,9 +188,15 @@ jobs:
             debugfs -R "rdump / $out" "$img" 2>&1 | tail -2 || true
             [ -n "$(ls -A "$out" 2>/dev/null)" ] || echo "警告: $out 为空"
           }
+          dump_img fwx/system.img.ext4.lz4 sys/system
+          dump_img fwx/vendor.img.ext4.lz4 sys/vendor
+          dump_img fwx/product.img.ext4.lz4 sys/product
+          # 兼容老命名
           dump_img fwx/system.img sys/system
           dump_img fwx/vendor.img sys/vendor
           dump_img fwx/product.img sys/product
+          # 清掉大体积中间产物（3.4G zip + 解出的 tar 包），省磁盘
+          rm -rf fwx
           # 合并 vendor/product 进 system（C7 单分区结构）
           [ -n "$(ls -A sys/vendor 2>/dev/null)" ] && cp -a sys/vendor/. sys/system/vendor/ 2>/dev/null || true
           [ -n "$(ls -A sys/product 2>/dev/null)" ] && cp -a sys/product/. sys/system/product/ 2>/dev/null || true
