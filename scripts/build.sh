@@ -144,6 +144,22 @@ if [ "$DEVICE" = "c7ltechn" ]; then
     "mkdir -p '$(dirname "$KCFG")' && cp '$PROJECT_ROOT/kernel/c7ltechn_defconfig' '$KCFG'"
   log_end
 
+  log_group "C7 内核补丁（修复 A6 内核 V1 battery 的 SM5705 头文件 bug）"
+  KPATCHES="$PROJECT_ROOT/kernel/patches"
+  if [ -d "$KPATCHES" ]; then
+    for p in "$KPATCHES"/*.patch; do
+      [ -f "$p" ] || continue
+      if patch -p1 --dry-run -d "$SRC_ROOT/kernel/samsung/msm8953" < "$p" >/dev/null 2>&1; then
+        patch -p1 -d "$SRC_ROOT/kernel/samsung/msm8953" < "$p" >/dev/null 2>&1 \
+          && echo "::notice::内核补丁已应用: $(basename "$p")" \
+          || echo "::warning::内核补丁应用失败: $(basename "$p")"
+      else
+        echo "::notice::内核补丁已存在或不需要: $(basename "$p")"
+      fi
+    done
+  fi
+  log_end
+
   log_group "C7 vendor 提取"
   EXTRACT_DIR="$SRC_ROOT/.c7extract"
   mkdir -p "$EXTRACT_DIR/system"

@@ -1,0 +1,12 @@
+diff --git a/include/linux/mfd/sm5705/sm5705.h b/include/linux/mfd/sm5705/sm5705.h
+--- a/include/linux/mfd/sm5705/sm5705.h
++++ b/include/linux/mfd/sm5705/sm5705.h
+@@ -24,7 +24,7 @@
+ #define __SM5705_H__
+ #include <linux/platform_device.h>
+ #include <linux/regmap.h>
+-#include "../../../../drivers/battery_v2/include/sec_charging_common.h"
++#include <linux/battery/sec_charging_common.h>
+ #include <linux/leds-sm5705.h>
+  
+ #define MFD_DEV_NAME "sm5705"

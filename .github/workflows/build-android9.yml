@@ -119,6 +119,8 @@ jobs:
             grep -aE "error:|Error|fatal|undefined|No such|multiple definition" android/build.log 2>/dev/null | tail -20 || true
             echo "=== 顶层内存进程 ==="
             ps aux --sort=-%mem 2>/dev/null | head -8
+            echo "=== 内核补丁应用验证 ==="
+            grep -n "sec_charging_common" android/kernel/samsung/msm8953/include/linux/mfd/sm5705/sm5705.h 2>/dev/null || echo "!!! sm5705.h 不存在"
           } | tee /tmp/diag.txt
           # 归档诊断供后续下载
           mkdir -p "$GITHUB_WORKSPACE/diag" && cp /tmp/diag.txt "$GITHUB_WORKSPACE/diag/" 2>/dev/null || true
