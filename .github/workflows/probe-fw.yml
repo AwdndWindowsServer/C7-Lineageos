@@ -1,0 +1,39 @@
+name: Probe A6+ firmware versions (samloader-rs)
+
+# 只查 FUS 上 A6+ (SM-A6050/CHC) 还保留哪些固件版本，判断 Android 9 (One UI 1.0)
+# 是否仍可下载。约 2 分钟，上传 versions.txt 作为 artifact。
+on:
+  workflow_dispatch:
+    inputs:
+      a6_model:
+        description: 'a6plte 型号'
+        required: false
+        default: 'SM-A6050'
+      a6_region:
+        description: 'CSC 地区码'
+        required: false
+        default: 'CHC'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-fw.yml']
+
+jobs:
+  probe:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: samloader-rs check-update -a
+        run: |
+          curl -fSL --retry 3 -o samloader.tar.xz \
+            "https://github.com/topjohnwu/samloader-rs/releases/download/2.0.0/samloader-v2.0.0-linux-x86_64.tar.xz"
+          tar xf samloader.tar.xz
+          SL="$(find . -name samloader -type f | head -1)"
+          chmod +x "$SL"
+          echo "=== ${{ inputs.a6_model || 'SM-A6050' }} / ${{ inputs.a6_region || 'CHC' }} ==="
+          "$SL" check-update -m "${{ inputs.a6_model || 'SM-A6050' }}" \
+            -r "${{ inputs.a6_region || 'CHC' }}" -a 2>&1 | tee versions.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-versions
+          path: versions.txt
+          if-no-files-found: warn

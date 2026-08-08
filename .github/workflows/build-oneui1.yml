@@ -132,8 +132,17 @@ jobs:
             tar xf samloader.tar.xz
             SL="$(find . -name samloader -type f | head -1)"
             chmod +x "$SL"
-            "$SL" check-update -m "$A6_MODEL" -r "$A6_REGION" || true
-            echo "版本: $A6_VERSION"
+            echo "=== 全部版本 (check-update -a) ==="
+            "$SL" check-update -m "$A6_MODEL" -r "$A6_REGION" -a 2>&1 | tee versions.txt || true
+            echo "=== 目标版本: $A6_VERSION ==="
+            if ! grep -Fq "$A6_VERSION" versions.txt; then
+              echo "::error::目标版本 $A6_VERSION 不在 FUS 列表中"
+              echo "::error::已列出全部版本，最新为 $(head -1 versions.txt 2>/dev/null)"
+              echo "::error::若最新是 Android 10 (One UI 2.0)，本 pipeline (Android 9 kernel) 无法使用，"
+              echo "::error::请在 a6_version 填 FUS 仍保留的 Android 9 版本，或用 a6_firmware_url 直链"
+              exit 1
+            fi
+            echo "=== 下载: $A6_VERSION ==="
             "$SL" download -m "$A6_MODEL" -r "$A6_REGION" -v "$A6_VERSION" \
               -d . -o fw.tar 2>&1 | tail -5 || true
             ls -la
