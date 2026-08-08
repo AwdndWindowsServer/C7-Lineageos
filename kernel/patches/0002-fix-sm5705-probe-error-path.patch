@@ -1,0 +1,12 @@
+diff --git a/drivers/battery/sm5705_charger.c b/drivers/battery/sm5705_charger.c
+--- a/drivers/battery/sm5705_charger.c
++++ b/drivers/battery/sm5705_charger.c
+@@ -1992,7 +1992,7 @@ err_power_supply_register_chg:
+ err_power_supply_register:
+ 	destroy_workqueue(charger->wqueue);
+ #ifdef CONFIG_OF
+-	kfree(pdata->charger_data);
++	kfree(charger->pdata);
+ #endif
+ 	mutex_destroy(&charger->charger_mutex);
+ err_free:
