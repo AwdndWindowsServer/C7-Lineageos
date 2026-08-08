@@ -1,5 +1,5 @@
 # 构建产物
-android/
+/android/
 .ccache/
 build.log
 
