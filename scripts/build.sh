@@ -144,6 +144,33 @@ if [ "$DEVICE" = "c7ltechn" ]; then
     "mkdir -p '$(dirname "$KCFG")' && cp '$PROJECT_ROOT/kernel/c7ltechn_defconfig' '$KCFG'"
   log_end
 
+  log_group "C7 内核 CRLF 归一化"
+  # 内核源码树混有 Samsung 原始导出的 CRLF 文件，patch 对 CRLF 目标文件
+  # 报 "different line endings" 无法应用（曾导致补丁被误跳过）。统一转 LF。
+  python3 - "$SRC_ROOT/kernel/samsung/msm8953" <<'PYEOF'
+import os, sys
+root = sys.argv[1]
+n = 0
+for r, ds, fs in os.walk(root):
+    if os.sep + ".git" in r:
+        continue
+    for f in fs:
+        if not f.endswith((".c", ".h")):
+            continue
+        p = os.path.join(r, f)
+        try:
+            with open(p, "rb") as fh:
+                data = fh.read()
+            if b"\r\n" in data:
+                with open(p, "wb") as fh:
+                    fh.write(data.replace(b"\r\n", b"\n"))
+                n += 1
+        except Exception:
+            pass
+print(f"CRLF→LF 转换 {n} 个文件")
+PYEOF
+  log_end
+
   log_group "C7 内核补丁（修复 A6 内核 V1 battery 的 SM5705 头文件 bug）"
   KPATCHES="$PROJECT_ROOT/kernel/patches"
   if [ -d "$KPATCHES" ]; then
