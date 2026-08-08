@@ -20,6 +20,9 @@ LOCAL_CFLAGS += \
     -fno-short-enums \
     -D_ANDROID_
 
+LOCAL_C_INCLUDES += \
+    $(LOCAL_PATH)/../pla/android
+
 ## Includes
 LOCAL_HEADER_LIBRARIES := \
     libgps.utils_headers \

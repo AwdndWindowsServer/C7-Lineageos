@@ -35,6 +35,10 @@ endif
 LOCAL_LDFLAGS += -Wl,--export-dynamic
 
 ## Includes
+LOCAL_C_INCLUDES += \
+    $(LOCAL_PATH)/../pla/android \
+    $(LOCAL_PATH)/../core \
+    $(LOCAL_PATH)/../location
 LOCAL_HEADER_LIBRARIES := \
     libutils_headers \
     libloc_pla_headers \

@@ -176,7 +176,9 @@ PRODUCT_PACKAGES += \
     android.hardware.gatekeeper@1.0-impl \
     android.hardware.gatekeeper@1.0-service
 
-# GPS
+# GPS - 开源 QTI GNSS（android.hardware.gnss 命名空间，LOS 标准 framework 需要）
+# 注：proprietary-files.txt 里 tissot 的 vendor.qti.gnss@* 是 MIUI 用命名空间，
+#     与 LOS 不兼容，闭源 blob 已通过 - 可选标记或不动用，统一走开源栈。
 PRODUCT_PACKAGES += \
     android.hardware.gnss@1.0-impl-qti \
     gps.msm8953 \

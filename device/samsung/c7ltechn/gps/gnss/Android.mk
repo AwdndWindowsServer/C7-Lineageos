@@ -23,6 +23,15 @@ LOCAL_SRC_FILES += \
 LOCAL_CFLAGS += \
      -fno-short-enums \
 
+LOCAL_C_INCLUDES += \
+    $(LOCAL_PATH)/../pla/android \
+    $(LOCAL_PATH)/../utils \
+    $(LOCAL_PATH)/../core \
+    $(LOCAL_PATH)/../core/data-items \
+    $(LOCAL_PATH)/../core/data-items/common \
+    $(LOCAL_PATH)/../core/observer \
+    $(LOCAL_PATH)/../location
+
 ifeq ($(TARGET_BUILD_VARIANT),user)
    LOCAL_CFLAGS += -DTARGET_BUILD_VARIANT_USER
 endif
