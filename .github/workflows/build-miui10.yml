@@ -1,0 +1,210 @@
+name: Build C7 MIUI 10 (cm-14.1 port)
+
+# 流程：A 准备 → B 同步源码 → C 内核准备 → D 编译 LOS 14.1 base →
+#       E 下载 mido MIUI 10 → F 合并 → 上传产物
+#
+# 环境：Android 7.1 需要 python2 + OpenJDK8 + 老 ncurses。
+#       ubuntu-22.04 runner 镜像自带 openjdk-8 与 python2.7（16.0 工作流已验证），
+#       再补 ncurses5 symlink + repo 即可。free runner = 2 核/7GB RAM/3GB swap。
+#
+# 内存经验（沿用 build-android9.yml 实测结论）：-j2 可行，-j4 会 OOM；
+#       不加多余 swap（swap 风暴挂死），swappiness 保持默认 60。
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '构建目标（bacon 全量 / bootimage 快速验证）'
+        required: false
+        default: 'bacon'
+      miui_url:
+        description: 'mido MIUI 10 卡刷包直链（留空自动探测）'
+        required: false
+        default: ''
+      skip_miui:
+        description: '跳过 MIUI 合并，只出 LOS 14.1 base'
+        required: false
+        default: 'false'
+      build_jobs:
+        description: '并行编译任务数'
+        required: false
+        default: '2'
+  push:
+    branches: [main]
+    paths: ['.github/**', 'manifest/c7ltechn-miui10.xml', 'scripts/miui10*', 'kernel/patches/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      LOS_BRANCH: cm-14.1
+      DEVICE: c7ltechn
+      MANIFEST: manifest/c7ltechn-miui10.xml
+      TARGET: ${{ inputs.target || 'bacon' }}
+      BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
+      SYNC_JOBS: '4'
+      SRC_ROOT: ${{ github.workspace }}/android-miui10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/local/share/swift /usr/lib/mono \
+            /usr/local/lib/node_modules /root/.cargo /root/.rustup \
+            /opt/hostedtoolcache /usr/local/.ghcup /opt/az /opt/microsoft \
+            /usr/local/share/geckodriver /usr/local/lib/python3.*/site-packages/cv2
+          sudo apt-get clean
+          docker image prune -af || true
+          df -h / | tail -1
+          free -h
+
+      - name: Install build dependencies (Ubuntu 22.04 / Android 7.1)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git gnupg gperf lib32ncurses-dev lib32readline-dev lib32z1-dev \
+            liblz4-tool libncurses-dev libsdl1.2-dev libssl-dev libtinfo5 \
+            libxml2 libxml2-utils lzop pngcrush python2.7 rsync schedtool \
+            squashfs-tools xsltproc zip zlib1g-dev || true
+          # Android 7.1 需要 python2
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python2 || true
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python || true
+          # 老 ncurses：22.04 只有 .6，symlink 兼容
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncursesw.so.6 /usr/lib/x86_64-linux-gnu/libncursesw.so.5 || true
+          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5 || true
+          # repo 工具
+          sudo curl -sSL https://storage.googleapis.com/git-repo-downloads/repo -o /usr/local/bin/repo
+          sudo chmod a+x /usr/local/bin/repo
+          # 校验 JDK8（runner 镜像自带）
+          java -version 2>&1 | head -1 || echo "no java"
+          python --version || echo "no python2"
+
+      - name: repo init (cm-14.1)
+        run: |
+          mkdir -p "$SRC_ROOT"
+          cd "$SRC_ROOT"
+          # repo 自身源码走清华镜像，避免 gerrit 不稳定/被墙
+          repo init -u https://github.com/LineageOS/android.git -b "$LOS_BRANCH" \
+            --depth 1 --repo-url=https://mirrors.tuna.tsinghua.edu.cn/git/git-repo/
+          mkdir -p .repo/local_manifests
+          cp "$GITHUB_WORKSPACE/$MANIFEST" .repo/local_manifests/device.xml
+
+      - name: repo sync (shallow)
+        run: |
+          cd "$SRC_ROOT"
+          for attempt in 1 2 3; do
+            echo "=== sync attempt $attempt/3 ==="
+            if repo sync -j"$SYNC_JOBS" -c --force-sync --no-clone-bundle --no-tags; then
+              break
+            fi
+            [ "$attempt" -eq 3 ] && exit 1
+          done
+          # 兜底：hardware/samsung
+          test -d hardware/samsung || git clone -b "$LOS_BRANCH" --depth 1 \
+            https://github.com/LineageOS/android_hardware_samsung hardware/samsung || true
+          # 关键文件自检
+          test -f device/samsung/c7ltechn/device.mk
+          test -f vendor/samsung/c7ltechn/Android.mk
+
+      - name: Kernel prep (CRLF + patches dry-run)
+        run: |
+          cd "$SRC_ROOT/kernel/samsung/msm8953"
+          # CRLF → LF（Samsung 原始导出）
+          find . -path ./.git -prune -o -type f \( -name '*.c' -o -name '*.h' \) -print0 \
+            | xargs -0 -P4 perl -pi -e 's/\r\n/\n/g' 2>/dev/null || true
+          # 已有补丁（0001-0006 给 16.0 内核写的）dry-run 自适应
+          applied=0; skipped=0
+          for p in "$GITHUB_WORKSPACE"/kernel/patches/*.patch; do
+            [ -f "$p" ] || continue
+            if git apply --check --ignore-whitespace "$p" 2>/dev/null; then
+              git apply --ignore-whitespace "$p"
+              echo "  applied: $(basename "$p")"; applied=$((applied+1))
+            else
+              echo "  skipped: $(basename "$p")"; skipped=$((skipped+1))
+            fi
+          done
+          echo "patches applied=$applied skipped=$skipped"
+
+      - name: Monitor (background)
+        run: |
+          nohup bash -c 'while true; do echo "$(date -u +%H:%M:%S) mem=$(free -m | awk "/Mem:/{printf \"%d/%d\", \$7, \$2}") swap=$(free -m | awk "/Swap:/{printf \"%d\", \$3}") load=$(cut -d" " -f1-3 /proc/loadavg)" >> /tmp/wfmon.log 2>&1; sleep 15; done' >/dev/null 2>&1 &
+
+      - name: Build base ROM (make bacon)
+        run: |
+          cd "$SRC_ROOT"
+          source build/envsetup.sh >/dev/null 2>&1
+          lunch lineage_${DEVICE}-userdebug >/dev/null 2>&1
+          echo "==== build start $(date -u +%FT%TZ) ===="
+          set -o pipefail
+          make bacon -j"$BUILD_JOBS" 2>&1 | tee build.log
+        shell: bash
+
+      - name: Download mido MIUI 10
+        if: inputs.skip_miui != 'true'
+        run: |
+          mkdir -p "$SRC_ROOT/miui10"
+          z="$SRC_ROOT/miui10/miui10-mido.zip"
+          if [ -n "${{ inputs.miui_url }}" ]; then
+            curl -fL --retry 3 -o "$z" "${{ inputs.miui_url }}"
+          else
+            echo "auto-detect mido MIUI 10 stable link..."
+            page="$(curl -fsSL https://xiaomifirmwareupdater.com/miui/mido/stable/ 2>/dev/null || true)"
+            dl="$(printf '%s' "$page" | grep -oE 'https://[^"]+V10[^"]+\.zip' | head -1)"
+            [ -z "$dl" ] && dl="$(printf '%s' "$page" | grep -oE 'https://[^"]+\.zip' | head -1)"
+            [ -z "$dl" ] && { echo "auto-detect failed; rerun with miui_url input"; exit 1; }
+            echo "  -> $dl"
+            curl -fL --retry 3 -o "$z" "$dl"
+          fi
+          ls -lh "$z"
+
+      - name: Merge MIUI 10 system into C7 base
+        if: inputs.skip_miui != 'true'
+        run: |
+          base="$(ls "$SRC_ROOT"/out/target/product/$DEVICE/lineage_*.zip | head -1)"
+          test -n "$base"
+          python3 "$GITHUB_WORKSPACE/scripts/miui10_port.py" \
+            --base "$base" \
+            --port "$SRC_ROOT/miui10/miui10-mido.zip" \
+            --out "$SRC_ROOT/C7_MIUI10_unsigned.zip"
+          ls -lh "$SRC_ROOT/C7_MIUI10_unsigned.zip"
+
+      - name: Diagnose on failure
+        if: always()
+        run: |
+          {
+            echo "=== monitor ==="
+            cat /tmp/wfmon.log 2>/dev/null | tail -30 || true
+            echo "=== build.log 尾部 ==="
+            tail -c 4000 "$SRC_ROOT/build.log" 2>/dev/null | tail -30 || true
+            echo "=== build.log error 行 ==="
+            grep -aE "error:|Error|fatal|undefined|No such file|multiple definition" \
+              "$SRC_ROOT/build.log" 2>/dev/null | tail -25 || true
+            echo "=== 磁盘 ==="
+            df -h / 2>/dev/null | tail -2
+          } | tee "$GITHUB_WORKSPACE/diag.txt"
+          mkdir -p "$GITHUB_WORKSPACE/diag"
+          cp "$SRC_ROOT/build.log" "$GITHUB_WORKSPACE/diag/build.log" 2>/dev/null || true
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag-logs
+          path: diag/
+          if-no-files-found: ignore
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: c7-miui10
+          path: |
+            ${{ github.workspace }}/android-miui10/C7_MIUI10_unsigned.zip
+            ${{ github.workspace }}/android-miui10/out/target/product/${{ env.DEVICE }}/lineage_*.zip
+            ${{ github.workspace }}/android-miui10/out/target/product/${{ env.DEVICE }}/boot.img
+            ${{ github.workspace }}/android-miui10/out/target/product/${{ env.DEVICE }}/recovery.img
+          if-no-files-found: warn
+          retention-days: 14

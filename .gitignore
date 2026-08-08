@@ -4,3 +4,6 @@ android/
 build.log
 
 *.zip
+
+# MIUI 10 移植本地源码目录
+android-miui10/

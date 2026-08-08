@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  C7 (SM-C7000, c7ltechn) × MIUI 10 移植 —— 底子为 Android 7.1 (cm-14.1)
+  目标：先在本仓库用 cm-14.1 资源编译出 C7 的 LOS 14.1 base ROM，
+        再把 mido（红米 Note 4）MIUI 10 (Android 7.1) system 合并上去。
+  msm8953 资源来自 Galaxy-MSM8953 组织，均为 cm-14.1 世代分支。
+-->
+<manifest>
+  <remote name="msm8953" fetch="https://github.com/Galaxy-MSM8953/" />
+
+  <!-- 内核：cm-14.1-c7 已含 c7ltechn_defconfig 与 C7 全套 DTS -->
+  <project path="kernel/samsung/msm8953" name="android_kernel_samsung_msm8953" remote="msm8953" revision="cm-14.1-c7" />
+
+  <!-- C7 设备树 + 共享 common -->
+  <project path="device/samsung/c7ltechn" name="android_device_samsung_c7ltechn" remote="msm8953" revision="cm-14.1" />
+  <project path="device/samsung/c7lte-common" name="android_device_samsung_c7lte-common" remote="msm8953" revision="cm-14.1" />
+  <project path="device/samsung/msm8953-common" name="android_device_samsung_msm8953-common" remote="msm8953" revision="cm-14.1" />
+
+  <!-- 厂商 blobs：cm-14.1 已含 c7ltechn 成品（无需原机提取） -->
+  <project path="vendor/samsung" name="proprietary_vendor_samsung" remote="msm8953" revision="cm-14.1" />
+</manifest>
