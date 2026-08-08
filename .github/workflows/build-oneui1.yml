@@ -1,34 +1,37 @@
 name: Build C7 One UI 1 (A6+ port)
 
 # C7 (SM-C7000) × One UI 1 (Android 9)
-#   base = a6plte (Galaxy A6+, SM-A605FN) 官方 One UI 固件（同骁龙 625/msm8953）
+#   base = a6plte (Galaxy A6+, 同骁龙 625/msm8953) 官方 One UI 固件
 #   kernel/boot = C7 自己编的 Android 9 boot.img（scripts/build.sh 16.0 管线）
 #   纯三星→三星移植，不碰 LineageOS 框架
 #
 # 流程：
 #   A. 编译 C7 Android 9 boot.img（历史卡点：内核能否编过，TARGET=bootimage 先验证）
-#   B. samloader 下载 a6plte One UI 固件（可 a6_firmware_url 直链代替）
+#   B. samloader-rs 下载 a6plte One UI 固件（可 a6_firmware_url 直链代替）
 #   C. 解包 system.img(+vendor.img) → 合并 → oneui1_assemble.py 出 flashable zip
 #
-# 注意：A6+ 最后官方版本是 Android 10（One UI 2.0）。要 One UI 1 必须给
-#       a6_version 填 Android 9 的具体版本号（在 samfrew.com/model/SM-A605FN/
-#       找 Android 9 的 build，如 A605FNXXU4BSA1），否则自动取最新版=One UI 2。
+# 固件说明（实测）：
+#   - A6+ 国行 A6050/CHC 在 FUS 保留 Android 9 (One UI 1.0) 版本
+#     （如 A6050ZCU5CUA2 / A6050ZCU5CUC4）；A605FN 等海外版只剩 Android 10 (One UI 2.0)
+#   - 默认 A6050/CHC + A6050ZCU5CUA2 (Android 9 / One UI 1.0)
+#   - 经典 samloader 的 FUS auth 已随三星 API 更新失效，改用 topjohnwu/samloader-rs
+#   - `samloader check-update -m -r -a` 可列全部版本确认
 
 on:
   workflow_dispatch:
     inputs:
       a6_model:
-        description: 'a6plte 型号（SM-A605FN / SM-A6050 / SM-A605G）'
+        description: 'a6plte 型号（One UI 1 用国行 SM-A6050）'
         required: false
-        default: 'SM-A605FN'
+        default: 'SM-A6050'
       a6_region:
-        description: 'CSC 地区码（如 XEU=英版 / CHC=国行）'
+        description: 'CSC 地区码（One UI 1 用 CHC=国行）'
         required: false
-        default: 'XEU'
+        default: 'CHC'
       a6_version:
-        description: '固件版本（One UI 1 需 Android 9 版本，如 A605FNXXU4BSA1；留空取最新）'
+        description: '固件版本（默认 A6050ZCU5CUA2 = Android 9/One UI 1.0）'
         required: false
-        default: ''
+        default: 'A6050ZCU5CUA2'
       a6_firmware_url:
         description: '固件 zip 直链（可选，优先于 samloader）'
         required: false
@@ -49,9 +52,9 @@ jobs:
       LOS_BRANCH: lineage-16.0
       DEVICE: c7ltechn
       MANIFEST: manifest/c7ltechn.xml
-      A6_MODEL: ${{ inputs.a6_model || 'SM-A605FN' }}
-      A6_REGION: ${{ inputs.a6_region || 'XEU' }}
-      A6_VERSION: ${{ inputs.a6_version }}
+      A6_MODEL: ${{ inputs.a6_model || 'SM-A6050' }}
+      A6_REGION: ${{ inputs.a6_region || 'CHC' }}
+      A6_VERSION: ${{ inputs.a6_version || 'A6050ZCU5CUA2' }}
       A6_FW_URL: ${{ inputs.a6_firmware_url }}
       BUILD_JOBS: ${{ inputs.build_jobs || '2' }}
       SRC_ROOT: ${{ github.workspace }}/android
@@ -115,7 +118,7 @@ jobs:
         if: false
         run: echo "由 extract 步骤内联兜底（缺 simg2img 时自动 mka）"
 
-      - name: Download a6plte One UI firmware
+      - name: Download a6plte One UI firmware (samloader-rs)
         run: |
           mkdir -p "$SRC_ROOT/fw"
           cd "$SRC_ROOT/fw"
@@ -123,38 +126,42 @@ jobs:
             echo "使用直链: $A6_FW_URL"
             curl -fL --retry 3 -o fw.zip "$A6_FW_URL"
           else
-            pip3 install -q git+https://github.com/samloader/samloader.git
-            VER="$A6_VERSION"
-            if [ -z "$VER" ]; then
-              echo "自动查最新版本（注意：A6+ 最新是 Android 10/One UI 2.0）..."
-              VER="$(samloader -m "$A6_MODEL" -r "$A6_REGION" checkupdate 2>/dev/null)"
-              echo "最新版本: $VER"
-            fi
-            [ -n "$VER" ] || { echo "samloader checkupdate 失败，请填 a6_version 或 a6_firmware_url"; exit 1; }
-            echo "samloader download -m $A6_MODEL -r $A6_REGION -v $VER ..."
-            samloader -m "$A6_MODEL" -r "$A6_REGION" download -v "$VER" -O . 2>&1 | tail -3
-            ENC="$(ls *.enc* 2>/dev/null | head -1)"
-            [ -n "$ENC" ] || { echo "下载产物不是 .enc*，可能已直出 zip"; ls -la; }
-            if [ -n "$ENC" ]; then
-              samloader -m "$A6_MODEL" -r "$A6_REGION" decrypt -v "$VER" -V 4 -i "$ENC" -o fw.zip 2>&1 | tail -3 || {
-                echo "解密 v4 失败，尝试 V 2 ..."
-                samloader -m "$A6_MODEL" -r "$A6_REGION" decrypt -v "$VER" -V 2 -i "$ENC" -o fw.zip 2>&1 | tail -3 || exit 1
-              }
-            else
-              mv *.zip fw.zip 2>/dev/null || true
-            fi
+            # samloader-rs 预编译二进制（topjohnwu，修过三星 FUS 新 auth）
+            curl -fSL --retry 3 -o samloader.tar.xz \
+              "https://github.com/topjohnwu/samloader-rs/releases/download/2.0.0/samloader-v2.0.0-linux-x86_64.tar.xz"
+            tar xf samloader.tar.xz
+            SL="$(find . -name samloader -type f | head -1)"
+            chmod +x "$SL"
+            "$SL" check-update -m "$A6_MODEL" -r "$A6_REGION" || true
+            echo "版本: $A6_VERSION"
+            "$SL" download -m "$A6_MODEL" -r "$A6_REGION" -v "$A6_VERSION" \
+              -d . -o fw.tar 2>&1 | tail -5 || true
+            ls -la
           fi
-          test -f fw.zip || { echo "无固件 zip"; exit 1; }
-          ls -lh fw.zip
+          # 产物可能是 zip 或 tar（AP/BL/CP/CSC 包）
+          test -s fw.tar || { echo "固件下载失败"; exit 1; }
+          ls -lh fw.tar
 
       - name: Extract One UI system (system.img + vendor.img)
         run: |
           cd "$SRC_ROOT/fw"
-          unzip -o -q fw.zip -d fwx || 7z x -y fw.zip -ofwx
+          # 处理 fw.tar（samloader-rs 产物，内含 BL/AP/CP/CSC 的 tar.md5）或 fw.zip（直链）
+          rm -rf fwx && mkdir fwx
+          if [ -s fw.tar ]; then
+            tar xf fw.tar -C fwx 2>/dev/null || true
+          elif [ -s fw.zip ]; then
+            unzip -o -q fw.zip -d fwx || 7z x -y fw.zip -ofwx
+          fi
+          find fwx -maxdepth 2 -name "AP_*" -o -maxdepth 2 -name "*.tar.md5" | head -5 || true
+          # AP 包可能还在嵌套 tar 里（BL/AP/CP/CSC 同属 firmware tar 的子 tar）
           AP="$(ls fwx/AP_*.tar.md5 2>/dev/null | head -1)"
-          [ -n "$AP" ] || { echo "未找到 AP_*.tar.md5"; ls -la fwx; exit 1; }
-          tar xf "$AP" -C fwx
-          ls -la fwx
+          if [ -z "$AP" ]; then
+            inner="$(find fwx -name "AP_*.tar*" | head -1)"
+            [ -n "$inner" ] && { mkdir -p fwx/ap && tar xf "$inner" -C fwx/ap; AP="$(ls fwx/ap/AP_* 2>/dev/null | head -1)"; }
+          fi
+          [ -n "$AP" ] || { echo "未找到 AP 包"; find fwx -maxdepth 3 | head -30; exit 1; }
+          tar xf "$AP" -C fwx 2>/dev/null || { mkdir -p fwx/ap2 && tar xf "$AP" -C fwx/ap2 && cp fwx/ap2/* fwx/ 2>/dev/null; }
+          echo "--- AP 内容 ---"; ls -la fwx | grep -iE "system|vendor|boot|product" || true
           SIMG2IMG="$SRC_ROOT/out/host/linux-x86/bin/simg2img"
           mkdir -p sys/system sys/vendor sys/product
           dump_img() {
